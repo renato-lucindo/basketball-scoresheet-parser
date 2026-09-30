@@ -69,12 +69,14 @@ class DocumentMetadata:
 @dataclass(slots=True)
 class ScoringEvent:
     team: str
-    period: int
+    period: int | None
     running_score: int
     jersey: int | None
     shot_type: ShotType
     points: int
+    ink_color: str | None = None
     confidence: float | None = None
+    jersey_confidence: float | None = None
     status: DecisionStatus = DecisionStatus.ACCEPTED
 
 

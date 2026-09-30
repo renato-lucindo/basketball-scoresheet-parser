@@ -43,3 +43,16 @@ scoresheet-parser debug jogo.pdf --output debug/jogo
 O comando gera a folha normalizada, um overlay das regioes e um crop por
 regiao do MVP. Esse artefato e usado para calibrar o template antes da
 implementacao dos reconhecedores de pontos e faltas.
+
+## Estado atual do MVP
+
+- geometria e normalizacao do template FECABA;
+- participacao e quinteto inicial por cor/marca;
+- pontuacao: lance livre, cesta de 2 e indicio de cesta de 3;
+- separacao inicial dos periodos pela sequencia de cores;
+- faltas da equipe: X, casa inutilizada e limite de quatro marcas;
+- faltas individuais: deteccao de preenchimento, cor e separador do intervalo.
+
+O reconhecimento do numero da camisa e do simbolo manuscrito da falta fica
+atras de interfaces proprias e entra no proximo marco. Ate la, leituras que
+dependem do manuscrito devem continuar marcadas para revisao.
