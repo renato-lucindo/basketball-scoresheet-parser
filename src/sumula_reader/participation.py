@@ -4,7 +4,9 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from .models import DecisionStatus, ParticipantMark
+from .imaging import crop_region
+from .models import DecisionStatus, ParticipantMark, PlayerResult
+from .template import FECABA_V1, TemplateSpec
 
 
 @dataclass(slots=True)
@@ -18,6 +20,15 @@ class ParticipationDetection:
     blue_pixel_ratio: float
     red_pixel_ratio: float
     red_ring_ratio: float
+
+
+@dataclass(frozen=True, slots=True)
+class ParticipationGridSpec:
+    header_fraction: float = 0.085
+    roster_rows: int = 12
+
+
+PARTICIPATION_GRID = ParticipationGridSpec()
 
 
 def _as_rgb_array(image: np.ndarray) -> np.ndarray:
@@ -109,3 +120,45 @@ def detect_participation(
         red_pixel_ratio=round(red_ratio, 6),
         red_ring_ratio=round(red_ring_ratio, 6),
     )
+
+
+def extract_players(
+    normalized_image: np.ndarray,
+    *,
+    team: str,
+    jerseys: list[int],
+    template: TemplateSpec = FECABA_V1,
+    grid: ParticipationGridSpec = PARTICIPATION_GRID,
+) -> list[PlayerResult]:
+    side = team.upper()
+    if side not in {"A", "B"}:
+        raise ValueError("team deve ser A ou B")
+    if len(jerseys) > grid.roster_rows:
+        raise ValueError(
+            f"O template suporta no maximo {grid.roster_rows} linhas de jogadores"
+        )
+
+    block = crop_region(
+        normalized_image,
+        template.region(f"team_{side.lower()}_participation"),
+    )
+    data_top = round(block.shape[0] * grid.header_fraction)
+    data = block[data_top:]
+    row_height = data.shape[0] / grid.roster_rows
+    players: list[PlayerResult] = []
+
+    for index, jersey in enumerate(jerseys):
+        top = round(index * row_height)
+        bottom = round((index + 1) * row_height)
+        detection = detect_participation(data[top:bottom])
+        players.append(
+            PlayerResult(
+                jersey=jersey,
+                participation_mark=detection.mark,
+                participated=detection.participated,
+                starter=detection.starter,
+                participation_confidence=detection.participation_confidence,
+                starter_confidence=detection.starter_confidence,
+            )
+        )
+    return players

@@ -8,7 +8,9 @@ from sumula_reader.fouls import (
     analyze_player_foul_row,
     classify_team_foul_cell,
     detect_half_separator,
+    parse_foul_symbol,
 )
+from sumula_reader.models import FoulKind
 
 
 RED = (190, 45, 45)
@@ -66,6 +68,14 @@ class FoulTests(unittest.TestCase):
         )
         self.assertEqual([foul.slot for foul in fouls], [1, 2, 3, 4])
         self.assertEqual([foul.period for foul in fouls], [1, 2, 3, 4])
+
+    def test_parse_foul_symbol(self):
+        self.assertEqual(parse_foul_symbol("P2"), (FoulKind.PERSONAL, 2))
+        self.assertEqual(
+            parse_foul_symbol(" u1 "),
+            (FoulKind.UNSPORTSMANLIKE, 1),
+        )
+        self.assertEqual(parse_foul_symbol("?"), (FoulKind.UNKNOWN, None))
 
 
 if __name__ == "__main__":

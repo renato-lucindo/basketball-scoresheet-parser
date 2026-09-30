@@ -56,3 +56,18 @@ implementacao dos reconhecedores de pontos e faltas.
 O reconhecimento do numero da camisa e do simbolo manuscrito da falta fica
 atras de interfaces proprias e entra no proximo marco. Ate la, leituras que
 dependem do manuscrito devem continuar marcadas para revisao.
+
+### Analise estruturada
+
+Enquanto o classificador manuscrito ainda nao foi treinado, o roster e
+fornecido como contexto:
+
+    scoresheet-parser analyze jogo.pdf ^
+      --roster-a "4,5,6,7,8,9,10,11,12,13,14" ^
+      --roster-b "4,5,6,7,8,11,12,13,14,15,16,17" ^
+      --writer-id writer_07 ^
+      --output resultado.json
+
+O JSON ja contem evidencias visuais, periodos, placar calculado, faltas,
+participacao e warnings. Campos que exigem leitura manuscrita permanecem em
+estado de revisao ate que um recognizer seja conectado.

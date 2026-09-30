@@ -56,6 +56,27 @@ TEAM_FOUL_GRID = TeamFoulGridSpec()
 PLAYER_FOUL_GRID = PlayerFoulGridSpec()
 
 
+FOUL_SYMBOLS = {
+    "P": (FoulKind.PERSONAL, None),
+    "P1": (FoulKind.PERSONAL, 1),
+    "P2": (FoulKind.PERSONAL, 2),
+    "P3": (FoulKind.PERSONAL, 3),
+    "T": (FoulKind.TECHNICAL, None),
+    "T1": (FoulKind.TECHNICAL, 1),
+    "U": (FoulKind.UNSPORTSMANLIKE, None),
+    "U1": (FoulKind.UNSPORTSMANLIKE, 1),
+    "U2": (FoulKind.UNSPORTSMANLIKE, 2),
+    "D": (FoulKind.DISQUALIFYING, None),
+}
+
+
+def parse_foul_symbol(symbol: str | None) -> tuple[FoulKind, int | None]:
+    if symbol is None:
+        return FoulKind.UNKNOWN, None
+    normalized = symbol.strip().upper().replace(" ", "")
+    return FOUL_SYMBOLS.get(normalized, (FoulKind.UNKNOWN, None))
+
+
 def classify_team_foul_cell(
     image: np.ndarray,
     *,

@@ -1,0 +1,117 @@
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from pathlib import Path
+
+import numpy as np
+
+from .fouls import extract_player_fouls, extract_team_foul_indicators
+from .imaging import load_document, normalize_document
+from .models import DocumentMetadata, DocumentResult, TeamResult
+from .participation import extract_players
+from .recognition import (
+    HandwritingRecognizer,
+    JerseyRecognitionAdapter,
+    WriterProfile,
+)
+from .reconcile import reconcile_document
+from .scoring import extract_scoring_events
+from .template import FECABA_V1, TemplateSpec
+
+
+@dataclass(slots=True)
+class AnalysisContext:
+    rosters: dict[str, list[int]] = field(default_factory=dict)
+    writer_id: str | None = None
+    writer_known: bool = False
+    writer_profile: WriterProfile | None = None
+
+
+def analyze_image(
+    normalized_image: np.ndarray,
+    *,
+    context: AnalysisContext,
+    template: TemplateSpec = FECABA_V1,
+    handwriting: HandwritingRecognizer | None = None,
+) -> DocumentResult:
+    rosters = {
+        side.upper(): numbers
+        for side, numbers in context.rosters.items()
+    }
+    jersey_recognizer = (
+        JerseyRecognitionAdapter(
+            handwriting,
+            rosters,
+            writer_id=context.writer_id,
+            profile=context.writer_profile,
+        )
+        if handwriting is not None
+        else None
+    )
+    scoring_events = extract_scoring_events(
+        normalized_image,
+        template=template,
+        recognizer=jersey_recognizer,
+    )
+
+    teams: dict[str, TeamResult] = {}
+    for side in ("A", "B"):
+        jerseys = list(rosters.get(side, ()))
+        players = extract_players(
+            normalized_image,
+            team=side,
+            jerseys=jerseys,
+            template=template,
+        )
+        fouls = extract_player_fouls(
+            normalized_image,
+            team=side,
+            jerseys=jerseys,
+            template=template,
+        )
+        players_by_jersey = {player.jersey: player for player in players}
+        for foul in fouls:
+            player = players_by_jersey.get(foul.jersey)
+            if player is not None:
+                player.fouls.append(foul)
+
+        teams[side] = TeamResult(
+            side=side,
+            players=players,
+            scoring_events=[
+                event for event in scoring_events if event.team == side
+            ],
+            team_fouls=extract_team_foul_indicators(
+                normalized_image,
+                team=side,
+                template=template,
+            ),
+        )
+
+    result = DocumentResult(
+        metadata=DocumentMetadata(
+            template=template.template_id,
+            writer_id=context.writer_id,
+            writer_known=context.writer_known,
+        ),
+        teams=teams,
+    )
+    return reconcile_document(result)
+
+
+def analyze_path(
+    path: str | Path,
+    *,
+    context: AnalysisContext,
+    template: TemplateSpec = FECABA_V1,
+    handwriting: HandwritingRecognizer | None = None,
+    dpi: int = 250,
+) -> DocumentResult:
+    image = load_document(path, dpi=dpi)
+    normalized = normalize_document(image, template)
+    return analyze_image(
+        normalized.image,
+        context=context,
+        template=template,
+        handwriting=handwriting,
+    )

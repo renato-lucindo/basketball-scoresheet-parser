@@ -27,7 +27,20 @@ from .fouls import (
     detect_half_separator,
     extract_player_fouls,
     extract_team_foul_indicators,
+    parse_foul_symbol,
 )
+from .alterations import AlterationObservation, detect_alteration
+from .pipeline import AnalysisContext, analyze_image, analyze_path
+from .recognition import (
+    HandwritingRecognizer,
+    JerseyRecognitionAdapter,
+    RecognitionCandidate,
+    RecognitionResult,
+    WriterProfile,
+    apply_writer_profile,
+    constrain_candidates,
+)
+from .reconcile import reconcile_document, reconcile_team
 
 __all__ = [
     "DecisionStatus",
@@ -55,6 +68,21 @@ __all__ = [
     "detect_half_separator",
     "extract_player_fouls",
     "extract_team_foul_indicators",
+    "parse_foul_symbol",
+    "AlterationObservation",
+    "detect_alteration",
+    "AnalysisContext",
+    "analyze_image",
+    "analyze_path",
+    "HandwritingRecognizer",
+    "JerseyRecognitionAdapter",
+    "RecognitionCandidate",
+    "RecognitionResult",
+    "WriterProfile",
+    "apply_writer_profile",
+    "constrain_candidates",
+    "reconcile_document",
+    "reconcile_team",
 ]
 
 __version__ = "0.1.0"
