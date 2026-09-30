@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "basketball-scoresheet-parser"
+version = "0.1.0"
+description = "Leitor estruturado de sumulas de basquete FECABA"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "sumula-reader contributors" }]
+dependencies = [
+  "numpy>=2.0",
+  "Pillow>=10.0",
+]
+
+[project.optional-dependencies]
+vision = ["opencv-python-headless>=4.10", "PyMuPDF>=1.24"]
+ml = ["torch>=2.4"]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+scoresheet-parser = "sumula_reader.cli:main"
+sumula-reader = "sumula_reader.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
