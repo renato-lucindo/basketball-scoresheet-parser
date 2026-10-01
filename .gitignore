@@ -9,6 +9,14 @@ build/
 .codex/
 .coverage
 htmlcov/
+data/
+dataset/
+datasets/external/
+datasets/fecaba/
+models/*.pt
+models/**/*.pt
+debug/
+results/
 *.pdf
 *.png
 *.jpg

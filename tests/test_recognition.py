@@ -4,6 +4,7 @@ import numpy as np
 
 from sumula_reader.models import DecisionStatus
 from sumula_reader.recognition import (
+    FoulRecognitionAdapter,
     JerseyRecognitionAdapter,
     RecognitionCandidate,
     RecognitionResult,
@@ -74,6 +75,28 @@ class RecognitionTests(unittest.TestCase):
         )
         self.assertEqual(value, 14)
         self.assertEqual(confidence, 1.0)
+
+    def test_foul_adapter_limits_labels_and_keeps_writer_context(self):
+        recognizer = FakeRecognizer(
+            [
+                RecognitionCandidate("P2", 0.75),
+                RecognitionCandidate("A", 0.20),
+                RecognitionCandidate("U1", 0.05),
+            ]
+        )
+        adapter = FoulRecognitionAdapter(
+            recognizer,
+            writer_id="writer_07",
+        )
+        result = adapter.recognize(
+            np.zeros((20, 20, 3), dtype=np.uint8),
+        )
+        self.assertEqual(result.value, "P2")
+        self.assertGreater(result.confidence, 0.9)
+        self.assertEqual(
+            [candidate.label for candidate in result.candidates],
+            ["P2", "U1"],
+        )
 
     def test_no_allowed_candidate_requires_review(self):
         result = RecognitionResult(

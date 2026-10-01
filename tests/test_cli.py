@@ -24,6 +24,23 @@ class CliTests(unittest.TestCase):
         )
         self.assertEqual(args.command, "analyze")
 
+    def test_analyze_accepts_optional_jev_model(self):
+        args = build_parser().parse_args(
+            [
+                "analyze",
+                "jogo.pdf",
+                "--roster-a",
+                "4,5,6,7,8",
+                "--roster-b",
+                "9,10,11,12,13",
+                "--jev",
+                "--jev-model",
+                "jev-preview",
+            ]
+        )
+        self.assertTrue(args.jev)
+        self.assertEqual(args.jev_model, "jev-preview")
+
 
 if __name__ == "__main__":
     unittest.main()

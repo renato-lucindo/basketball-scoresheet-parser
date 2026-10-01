@@ -5,11 +5,13 @@ from pathlib import Path
 
 import numpy as np
 
+from .decision import DecisionEngine
 from .fouls import extract_player_fouls, extract_team_foul_indicators
 from .imaging import load_document, normalize_document
 from .models import DocumentMetadata, DocumentResult, TeamResult
 from .participation import extract_players
 from .recognition import (
+    FoulRecognitionAdapter,
     HandwritingRecognizer,
     JerseyRecognitionAdapter,
     WriterProfile,
@@ -33,6 +35,7 @@ def analyze_image(
     context: AnalysisContext,
     template: TemplateSpec = FECABA_V1,
     handwriting: HandwritingRecognizer | None = None,
+    decision_engine: DecisionEngine | None = None,
 ) -> DocumentResult:
     rosters = {
         side.upper(): numbers
@@ -48,10 +51,20 @@ def analyze_image(
         if handwriting is not None
         else None
     )
+    foul_recognizer = (
+        FoulRecognitionAdapter(
+            handwriting,
+            writer_id=context.writer_id,
+            profile=context.writer_profile,
+        )
+        if handwriting is not None
+        else None
+    )
     scoring_events = extract_scoring_events(
         normalized_image,
         template=template,
         recognizer=jersey_recognizer,
+        decision_engine=decision_engine,
     )
 
     teams: dict[str, TeamResult] = {}
@@ -68,6 +81,7 @@ def analyze_image(
             team=side,
             jerseys=jerseys,
             template=template,
+            recognizer=foul_recognizer,
         )
         players_by_jersey = {player.jersey: player for player in players}
         for foul in fouls:
@@ -85,6 +99,7 @@ def analyze_image(
                 normalized_image,
                 team=side,
                 template=template,
+                decision_engine=decision_engine,
             ),
         )
 
@@ -105,6 +120,7 @@ def analyze_path(
     context: AnalysisContext,
     template: TemplateSpec = FECABA_V1,
     handwriting: HandwritingRecognizer | None = None,
+    decision_engine: DecisionEngine | None = None,
     dpi: int = 250,
 ) -> DocumentResult:
     image = load_document(path, dpi=dpi)
@@ -114,4 +130,5 @@ def analyze_path(
         context=context,
         template=template,
         handwriting=handwriting,
+        decision_engine=decision_engine,
     )
