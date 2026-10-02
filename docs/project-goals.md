@@ -35,6 +35,27 @@ When work competes for time, prioritize it in this order:
 5. contributor experience and maintainability;
 6. new formats and adjacent product features after FECABA v1.0.
 
+## Current Milestone
+
+**Active milestone: M1 — Trusted evaluation data.**
+
+Until M1 exit criteria are satisfied, the default work queue is limited to:
+
+- reviewing and correcting real FECABA ground truth;
+- defining and versioning the evaluation corpus and its train/evaluation split;
+- enforcing document-level and available writer-level isolation;
+- making baseline evaluation reproducible;
+- fixing defects that prevent trustworthy M1 data or metrics.
+
+The following work is frozen by default while M1 is active:
+
+- support for new scoresheet formats;
+- product surfaces such as dashboards, mobile apps, or SaaS features;
+- optimization work whose only purpose is increasing automation before the evaluation baseline is trustworthy;
+- milestone M2-M6 work that does not remove a direct blocker for M1.
+
+Advance from M1 to M2 only after every M1 exit criterion below has evidence in the repository or release records. When the active milestone changes, update this section in the same commit/PR that records the evidence for the transition.
+
 ## Goals Through v1.0
 
 1. Make the FECABA pipeline work end to end from a supported image or PDF to a structured `DocumentResult`/JSON result.
