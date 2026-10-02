@@ -15,16 +15,23 @@ from .dataset import assign_document_split, validate_split_isolation
 from .fouls import (
     PLAYER_FOUL_GRID,
     _period_for_foul,
+    classify_foul_terminal,
+    clean_player_foul_cell,
     detect_half_separator,
+    detect_player_foul_grid,
 )
 from .imaging import load_document, normalize_document
 from .imaging import crop_region
+from .label_studio_review import load_geometry_overrides, reviewed_region, stable_crop_id
 from .scoring import (
     DEFAULT_GRID,
     InkColor,
+    ScoreMarkKind,
     _iter_scoring_crops,
     _looks_like_closure_stroke,
+    classify_score_mark,
     colored_ink_masks,
+    detect_jersey_circle,
     detect_scoring_grid,
 )
 from .template import FECABA_V1
@@ -293,6 +300,135 @@ def _save_crop(image: np.ndarray, path: Path) -> None:
     Image.fromarray(np.asarray(image, dtype=np.uint8)).save(path)
 
 
+def _review_metadata(
+    item: dict[str, object],
+    crop: np.ndarray,
+    *,
+    source_image_hash: str,
+    bbox_original: list[int] | None = None,
+) -> dict[str, object]:
+    height, width = crop.shape[:2]
+    item["crop_id"] = stable_crop_id(item)
+    item["source_image_hash"] = source_image_hash
+    item["crop_image_hash"] = hashlib.sha256(
+        np.ascontiguousarray(crop).tobytes()
+    ).hexdigest()
+    item.setdefault("review_state", "pending")
+    item["bbox_original"] = bbox_original or [0, 0, width, height]
+    if item.get("field_type") == "scoring_event":
+        item["position"] = f"score:{item.get('team')}:{item.get('running_score')}"
+    else:
+        item["position"] = f"foul:{item.get('team')}:row{item.get('row')}:slot{item.get('slot')}"
+    return item
+
+
+def _combine_scoring_candidate(
+    jersey_crop: np.ndarray,
+    score_crop: np.ndarray,
+) -> tuple[np.ndarray, list[int]]:
+    jersey = np.asarray(jersey_crop, dtype=np.uint8)
+    score = np.asarray(score_crop, dtype=np.uint8)
+    height = max(jersey.shape[0], score.shape[0])
+    gap = max(3, round(height * 0.08))
+    width = jersey.shape[1] + gap + score.shape[1]
+    canvas = np.full((height, width, 3), 255, dtype=np.uint8)
+    jersey_top = (height - jersey.shape[0]) // 2
+    score_top = (height - score.shape[0]) // 2
+    canvas[jersey_top : jersey_top + jersey.shape[0], : jersey.shape[1]] = jersey
+    score_left = jersey.shape[1] + gap
+    canvas[
+        score_top : score_top + score.shape[0],
+        score_left : score_left + score.shape[1],
+    ] = score
+    return canvas, [0, jersey_top, jersey.shape[1], jersey_top + jersey.shape[0]]
+
+
+def _advance_scoring_period(
+    state: tuple[int, InkColor | None],
+    color: InkColor,
+) -> tuple[int | None, tuple[int, InkColor | None]]:
+    period, previous_color = state
+    if color is InkColor.UNKNOWN:
+        return None, state
+    if previous_color is None:
+        period = 1 if color is InkColor.RED else 2
+        return period, (period, color)
+    if color is previous_color:
+        return period, state
+    possible = (1, 3) if color is InkColor.RED else (2, 4)
+    later = [candidate for candidate in possible if candidate > period]
+    if not later:
+        return None, state
+    period = later[0]
+    return period, (period, color)
+
+
+def _terminal_crop_item(
+    *,
+    document_id: str,
+    writer_id: str | None,
+    relative: Path,
+    split: str,
+    side: str,
+    jersey: int | None,
+    row: int,
+    slot: int,
+    predicted_label: str,
+) -> dict[str, object]:
+    return {
+        "document_id": document_id,
+        "writer_id": writer_id,
+        "field_type": "foul_terminal",
+        "label": None,
+        "predicted_label": predicted_label,
+        "crop_path": relative.as_posix(),
+        "split": split,
+        "team": side,
+        "period": None,
+        "jersey": jersey,
+        "row": row,
+        "slot": slot,
+        "status": "unlabeled",
+        "grid_aligned": True,
+        "model_trainable": False,
+    }
+
+
+def _reviewed_trainable_ids(
+    crops_root: Path,
+    manifest: list[dict[str, object]],
+) -> set[str]:
+    reviewed_path = crops_root / "manifest.reviewed.jsonl"
+    if not reviewed_path.exists():
+        return set()
+    automatic = {
+        str(item.get("crop_id")): item
+        for item in manifest
+        if item.get("crop_id") is not None
+    }
+    result: set[str] = set()
+    for line in reviewed_path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        item = json.loads(line)
+        crop_id = str(item.get("crop_id") or "")
+        current = automatic.get(crop_id)
+        if current is None:
+            continue
+        if current.get("model_trainable") is False:
+            continue
+        if item.get("review_state") not in {"accepted", "adjusted"}:
+            continue
+        if item.get("label") is None:
+            continue
+        if item.get("source_image_hash") != current.get("source_image_hash"):
+            continue
+        if item.get("crop_image_hash") != current.get("crop_image_hash"):
+            continue
+        result.add(crop_id)
+    return result
+
+
 def _scoring_labels(ground_truth: dict[str, object]) -> dict[tuple[str, int], dict]:
     result: dict[tuple[str, int], dict] = {}
     for event in ground_truth["scoring"]:
@@ -337,6 +473,7 @@ def build_fecaba_crops(
 
     manifest: list[dict[str, object]] = []
     processed_documents = 0
+    geometry_overrides = load_geometry_overrides(root)
     for document in records:
         document_id = document["document_id"]
         ground_truth_path = root / "ground_truth" / f"{document_id}.json"
@@ -349,55 +486,108 @@ def build_fecaba_crops(
         split = assign_document_split(document_id, writer_id=writer_id)
         scoring_labels = _scoring_labels(ground_truth)
 
-        table = crop_region(normalized.image, FECABA_V1.region("scoring_table"))
-        detected_grid = detect_scoring_grid(table, grid=DEFAULT_GRID)
-        for cell, _, jersey_crop, grid_aligned in _iter_scoring_crops(
-            table, detected_grid, DEFAULT_GRID
-        ):
-            red_mask, blue_mask = colored_ink_masks(jersey_crop)
-            ink_ratio = float((red_mask | blue_mask).mean())
-            if ink_ratio < 0.025 or _looks_like_closure_stroke(jersey_crop):
-                continue
-            expected = scoring_labels.get((cell.team, cell.running_score))
-            label = expected.get("jersey") if expected is not None else None
-            relative = (
-                Path("jerseys")
-                / split
-                / document_id
-                / f"{cell.team}-{cell.running_score:03d}.png"
+        scoring_region = reviewed_region(geometry_overrides, document_id, "scoring_table")
+        if scoring_region is not None:
+            table = crop_region(normalized.image, scoring_region)
+            detected_grid = detect_scoring_grid(table, grid=DEFAULT_GRID)
+            period_state: dict[str, tuple[int, InkColor | None]] = {
+                "A": (0, None),
+                "B": (0, None),
+            }
+            scoring_cells = (
+                _iter_scoring_crops(table, detected_grid, DEFAULT_GRID)
+                if detected_grid.valid
+                else ()
             )
-            _save_crop(jersey_crop, crops_root / relative)
-            manifest.append(
-                {
+            for cell, score_crop, jersey_crop, _ in scoring_cells:
+                red_mask, blue_mask = colored_ink_masks(jersey_crop)
+                ink_ratio = float((red_mask | blue_mask).mean())
+                if ink_ratio < 0.025 or _looks_like_closure_stroke(jersey_crop):
+                    continue
+                mark = classify_score_mark(score_crop)
+                circle = detect_jersey_circle(jersey_crop)
+                ink_color = mark.ink_color
+                if ink_color is InkColor.UNKNOWN:
+                    red_count = int(red_mask.sum())
+                    blue_count = int(blue_mask.sum())
+                    ink_color = (
+                        InkColor.RED
+                        if red_count > blue_count
+                        else InkColor.BLUE
+                        if blue_count > red_count
+                        else InkColor.UNKNOWN
+                    )
+                predicted_period, period_state[cell.team] = _advance_scoring_period(
+                    period_state[cell.team], ink_color
+                )
+                if mark.kind is ScoreMarkKind.FREE_THROW:
+                    predicted_type = "free_throw"
+                elif mark.kind is ScoreMarkKind.FIELD_GOAL and circle.detected:
+                    predicted_type = "three_point"
+                elif mark.kind is ScoreMarkKind.FIELD_GOAL:
+                    predicted_type = "two_point"
+                else:
+                    predicted_type = "ambiguous"
+                expected = scoring_labels.get((cell.team, cell.running_score))
+                label = expected.get("jersey") if expected is not None else None
+                candidate, jersey_bbox = _combine_scoring_candidate(
+                    jersey_crop,
+                    score_crop,
+                )
+                relative = (
+                    Path("scoring_events")
+                    / split
+                    / document_id
+                    / f"{cell.team}-{cell.running_score:03d}.png"
+                )
+                _save_crop(candidate, crops_root / relative)
+                item: dict[str, object] = {
                     "document_id": document_id,
                     "writer_id": writer_id,
-                    "field_type": "jersey",
+                    "field_type": "scoring_event",
                     "label": str(label) if label is not None else None,
                     "crop_path": relative.as_posix(),
                     "split": split,
                     "team": cell.team,
-                    "period": expected.get("period") if expected else None,
+                    "period": (
+                        expected.get("period")
+                        if expected is not None and expected.get("period") is not None
+                        else f"Q{predicted_period}" if predicted_period else None
+                    ),
                     "running_score": cell.running_score,
-                    "grid_aligned": grid_aligned,
+                    "predicted_type": predicted_type,
+                    "ink_color": ink_color.value,
+                    "grid_aligned": True,
                     "status": "labeled" if label is not None else "unlabeled",
                 }
-            )
+                manifest.append(
+                    _review_metadata(
+                        item,
+                        candidate,
+                        source_image_hash=str(document["sha256"]),
+                        bbox_original=jersey_bbox,
+                    )
+                )
 
         for side in ("A", "B"):
             team = ground_truth["teams"][side]
             roster = [int(number) for number in team["roster"]]
-            block = crop_region(
-                normalized.image,
-                FECABA_V1.region(f"team_{side.lower()}_player_fouls"),
+            foul_region = reviewed_region(
+                geometry_overrides,
+                document_id,
+                f"team_{side.lower()}_player_fouls",
             )
+            if foul_region is None:
+                continue
+            block = crop_region(normalized.image, foul_region)
             grid = PLAYER_FOUL_GRID
-            data_top = round(block.shape[0] * grid.header_fraction)
-            data = block[data_top:]
-            row_height = data.shape[0] / grid.roster_rows
+            detected_foul_grid = detect_player_foul_grid(block, side=side, grid=grid)
+            if not detected_foul_grid.valid:
+                continue
             for row_index in range(grid.roster_rows):
-                top = round(row_index * row_height)
-                bottom = round((row_index + 1) * row_height)
-                row = data[top:bottom]
+                top = detected_foul_grid.y_lines[row_index]
+                bottom = detected_foul_grid.y_lines[row_index + 1]
+                row = block[top:bottom]
                 jersey = roster[row_index] if row_index < len(roster) else None
                 expected_fouls = (
                     _foul_labels(ground_truth, side, jersey)
@@ -405,20 +595,53 @@ def build_fecaba_crops(
                     else []
                 )
                 separator = detect_half_separator(row, slots=grid.slots)
-                height, width = row.shape[:2]
-                slot_width = width / grid.slots
+                height = row.shape[0]
                 event_index = 0
                 for slot_index in range(grid.slots):
-                    left = round(slot_index * slot_width)
-                    right = round((slot_index + 1) * slot_width)
+                    left = detected_foul_grid.x_lines[slot_index]
+                    right = detected_foul_grid.x_lines[slot_index + 1]
                     margin_x = round((right - left) * grid.inner_margin)
                     margin_y = round(height * grid.inner_margin)
-                    cell_crop = row[
+                    raw_cell = row[
                         margin_y : max(margin_y + 1, height - margin_y),
                         left + margin_x : max(left + margin_x + 1, right - margin_x),
                     ]
+                    terminal = classify_foul_terminal(raw_cell)
+                    if terminal is not None:
+                        relative = (
+                            Path("foul_terminals")
+                            / split
+                            / document_id
+                            / f"{side}-row{row_index + 1:02d}-slot{slot_index + 1}.png"
+                        )
+                        _save_crop(raw_cell, crops_root / relative)
+                        terminal_item = _terminal_crop_item(
+                            document_id=document_id,
+                            writer_id=writer_id,
+                            relative=relative,
+                            split=split,
+                            side=side,
+                            jersey=jersey,
+                            row=row_index + 1,
+                            slot=slot_index + 1,
+                            predicted_label=(
+                                "F"
+                                if terminal.kind.value == "disqualification"
+                                else "stroke"
+                            ),
+                        )
+                        terminal_item["ink_color"] = terminal.ink_color.value
+                        manifest.append(
+                            _review_metadata(
+                                terminal_item,
+                                raw_cell,
+                                source_image_hash=str(document["sha256"]),
+                            )
+                        )
+                        break
+                    cell_crop = clean_player_foul_cell(raw_cell)
                     red_mask, blue_mask = colored_ink_masks(cell_crop)
-                    if float((red_mask | blue_mask).mean()) < 0.006:
+                    if float((red_mask | blue_mask).mean()) < grid.min_ink_ratio:
                         continue
                     red_count = int(red_mask.sum())
                     blue_count = int(blue_mask.sum())
@@ -448,26 +671,33 @@ def build_fecaba_crops(
                         / f"{side}-row{row_index + 1:02d}-slot{slot_index + 1}.png"
                     )
                     _save_crop(cell_crop, crops_root / relative)
+                    item = {
+                        "document_id": document_id,
+                        "writer_id": writer_id,
+                        "field_type": "foul_event",
+                        "label": label,
+                        "crop_path": relative.as_posix(),
+                        "split": split,
+                        "team": side,
+                        "period": (
+                            expected[0]
+                            if expected is not None
+                            else f"Q{period_number}" if period_number else None
+                        ),
+                        "jersey": jersey,
+                        "row": row_index + 1,
+                        "slot": slot_index + 1,
+                        "ink_color": color.value,
+                        "grid_aligned": True,
+                        "model_trainable": True,
+                        "status": "labeled" if label is not None else "unlabeled",
+                    }
                     manifest.append(
-                        {
-                            "document_id": document_id,
-                            "writer_id": writer_id,
-                            "field_type": "foul_symbol",
-                            "label": label,
-                            "crop_path": relative.as_posix(),
-                            "split": split,
-                            "team": side,
-                            "period": (
-                                expected[0]
-                                if expected is not None
-                                else f"Q{period_number}" if period_number else None
-                            ),
-                            "jersey": jersey,
-                            "row": row_index + 1,
-                            "slot": slot_index + 1,
-                            "ink_color": color.value,
-                            "status": "labeled" if label is not None else "unlabeled",
-                        }
+                        _review_metadata(
+                            item,
+                            cell_crop,
+                            source_image_hash=str(document["sha256"]),
+                        )
                     )
         processed_documents += 1
 
@@ -477,11 +707,20 @@ def build_fecaba_crops(
     with manifest_path.open("w", encoding="utf-8") as handle:
         for item in manifest:
             handle.write(json.dumps(item, ensure_ascii=False) + "\n")
+    automatic_labeled_ids = {
+        str(item["crop_id"])
+        for item in manifest
+        if item["status"] == "labeled" and item.get("crop_id") is not None
+    }
+    reviewed_labeled_ids = _reviewed_trainable_ids(crops_root, manifest)
+    labeled_ids = automatic_labeled_ids | reviewed_labeled_ids
     summary = {
         "documents": processed_documents,
         "crops": len(manifest),
-        "labeled": sum(item["status"] == "labeled" for item in manifest),
-        "unlabeled": sum(item["status"] == "unlabeled" for item in manifest),
+        "labeled": len(labeled_ids),
+        "automatic_labeled": len(automatic_labeled_ids),
+        "reviewed_labeled": len(reviewed_labeled_ids),
+        "unlabeled": len(manifest) - len(labeled_ids),
         "split_isolation": "ok",
         "manifest": str(manifest_path),
     }

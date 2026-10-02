@@ -59,12 +59,80 @@ de camisas e simbolos manuscritos.
 ### Dataset FECABA e reconhecimento manuscrito
 
 `dataset-ingest` extrai e cataloga as sumulas do ZIP. `dataset-build` gera
-crops e `manifest.jsonl` a partir dos gabaritos JSON.
+somente candidatos ancorados em grades detectadas: eventos de pontuacao combinam
+camisa + marcacao, e faltas individuais usam as cinco celulas reais da linha.
+Cada registro de `manifest.jsonl` nasce com `review_state=pending`.
 
 ```powershell
 python -m sumula_reader dataset-ingest sumulas.zip --output datasets/fecaba --pilot-count 5
 python -m sumula_reader dataset-build --dataset-root datasets/fecaba
 ```
+
+### Revisao assistida com Label Studio
+
+A revisao e local e usa duas passagens: primeiro as caixas das cinco sumulas
+piloto; depois os candidatos de pontuacao e faltas. As previsoes ficam no JSON de
+tarefas e o manifesto automatico continua separado do manifesto revisado.
+
+```powershell
+python -m pip install -e ".[vision,review]"
+python -m sumula_reader dataset-review-prepare --stage geometry
+
+$env:LABEL_STUDIO_LOCAL_FILES_SERVING_ENABLED="true"
+$env:LABEL_STUDIO_LOCAL_FILES_DOCUMENT_ROOT=(Resolve-Path "datasets/fecaba").Path
+label-studio start
+```
+
+No Label Studio, crie um projeto, use o conteudo de
+`datasets/fecaba/review/geometry.labeling.xml` como labeling config e importe
+`geometry.tasks.json`. As caixas chegam em `predictions`; copie a previsao para
+uma anotacao antes de editar. Depois de exportar JSON:
+
+```powershell
+python -m sumula_reader dataset-review-import geometry-export.json --stage geometry
+python -m sumula_reader dataset-build --dataset-root datasets/fecaba
+python -m sumula_reader dataset-review-prepare --stage scoring
+python -m sumula_reader dataset-review-prepare --stage fouls
+```
+
+Para cada crop, escolha `accepted`, `adjusted`, uma das rejeicoes, `erasure` ou
+`illegible`, ajuste a caixa quando necessario e informe o rotulo final. Importe
+os dois exports e confira a cobertura:
+
+```powershell
+python -m sumula_reader dataset-review-import scoring-export.json --stage scoring
+python -m sumula_reader dataset-review-import fouls-export.json --stage fouls
+python -m sumula_reader dataset-review-status
+```
+
+Depois da primeira revisao completa, o import marca exatamente 10% dos crops
+treinaveis (arredondando para cima) para uma segunda conferencia. Gere e
+importe essa amostra separadamente:
+
+```powershell
+python -m sumula_reader dataset-review-prepare --stage scoring --audit-only
+python -m sumula_reader dataset-review-import scoring-audit-export.json --stage scoring --audit-only
+python -m sumula_reader dataset-review-prepare --stage fouls --audit-only
+python -m sumula_reader dataset-review-import fouls-audit-export.json --stage fouls --audit-only
+python -m sumula_reader dataset-review-status
+```
+
+O status exige 100% de decisoes, nenhuma revisao obsoleta, auditoria concluida
+e pelo menos 98% de cortes geometricamente corretos antes de marcar o lote como
+pronto para treinamento. Ao reexecutar `dataset-build`, o manifesto automatico
+continua preservado; o resumo soma os registros revisados ainda validos em
+`reviewed_labeled`, permitindo confirmar `labeled > 0` sem copiar rotulos para
+o manifesto automatico.
+
+O resultado fica em `datasets/fecaba/crops/manifest.reviewed.jsonl`. Cada
+registro preserva `crop_id`, documento/apontador, hash da sumula, caixa
+original/revisada, rotulo original/final, equipe, periodo, posicao e estado da
+revisao. Apenas `accepted` e `adjusted` com rotulo valido entram no treinamento.
+Camisas sao validadas em `0..99`; faltas usam o vocabulario do reconhecedor.
+`foul_terminal` registra `F`/traco de encerramento separadamente e nunca entra
+no classificador de faltas comuns.
+Caixas fora da imagem, IDs duplicados e exports de uma versao antiga da sumula
+sao rejeitados.
 
 O split e feito por documento. Quando `writer_name` estiver preenchido no
 gabarito, o apontador anonimizado passa a ser a unidade de agrupamento, para
@@ -73,11 +141,11 @@ isolamento antes de gravar o manifesto.
 
 ```powershell
 python -m sumula_reader train-jerseys `
-  --manifest datasets/fecaba/crops/manifest.jsonl `
+  --manifest datasets/fecaba/crops/manifest.reviewed.jsonl `
   --output models/handwriting/jersey.pt
 
 python -m sumula_reader train-fouls `
-  --manifest datasets/fecaba/crops/manifest.jsonl `
+  --manifest datasets/fecaba/crops/manifest.reviewed.jsonl `
   --output models/handwriting/foul.pt
 ```
 
@@ -102,12 +170,12 @@ implementacao dos reconhecedores de pontos e faltas.
 
 - geometria e normalizacao do template FECABA;
 - participacao e quinteto inicial por cor/marca;
-- pontuacao: lance livre, cesta de 2 e indicio de cesta de 3;
-- separacao inicial dos periodos pela sequencia de cores;
+- pontuacao FIBA 2024: quatro paineis, linhas 1-160 e pares camisa + marcacao;
+- vermelho como sinal auxiliar de Q1/Q3 e azul de Q2/Q4;
 - faltas da equipe: X, casa inutilizada e limite de quatro marcas;
-- faltas individuais: deteccao de preenchimento, cor e separador do intervalo;
+- faltas individuais: cinco celulas reais, terminais separados e separador do intervalo;
 - reconhecedor PyTorch de camisas de uma ou duas casas;
-- reconhecedor PyTorch de `P`, `P1`, `P2`, `P3`, `T`, `T1`, `U`, `U1`, `U2`, `D` e `GD`;
+- reconhecedor PyTorch de `P`, `P1-P3`, `T`, `T1`, `U`, `U1-U3`, `D`, `D2`, `GD`, `Pc`, `Tc`, `Uc` e `Dc`;
 - calibracao de confianca para manter previsoes duvidosas em revisao.
 
 O reconhecimento manuscrito fica atras de interfaces proprias e pode ser

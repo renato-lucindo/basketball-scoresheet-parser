@@ -8,7 +8,14 @@ import numpy as np
 
 from .decision import DecisionEngine
 from .imaging import crop_region
-from .models import DecisionStatus, FoulEvent, FoulKind, TeamFoulIndicator
+from .models import (
+    DecisionStatus,
+    FoulEvent,
+    FoulKind,
+    FoulTerminal,
+    FoulTerminalKind,
+    TeamFoulIndicator,
+)
 from .recognition import RecognitionResult
 from .scoring import InkColor, colored_ink_masks
 from .template import FECABA_V1, NormalizedRect, TemplateSpec
@@ -66,9 +73,40 @@ class TeamFoulGridDetection:
 @dataclass(frozen=True, slots=True)
 class PlayerFoulGridSpec:
     header_fraction: float = 0.085
+    team_a_header_fraction: float = 0.26
+    team_b_footer_fraction: float = 0.08
     roster_rows: int = 12
     slots: int = 5
     inner_margin: float = 0.12
+    min_ink_ratio: float = 0.015
+
+
+@dataclass(frozen=True, slots=True)
+class PlayerFoulGridDetection:
+    x_lines: tuple[int, ...]
+    y_lines: tuple[int, ...]
+    confidence: float
+
+    @property
+    def valid(self) -> bool:
+        return len(self.x_lines) == 6 and len(self.y_lines) == 13
+
+
+@dataclass(frozen=True, slots=True)
+class FoulTerminalObservation:
+    kind: FoulTerminalKind
+    ink_color: InkColor
+    confidence: float
+
+
+@dataclass(frozen=True, slots=True)
+class ParsedFoulSymbol:
+    kind: FoulKind
+    free_throws: int | None
+    normalized: str | None
+    cancelled_penalty: bool
+    counts_as_team_foul: bool
+    fighting: bool
 
 
 TEAM_FOUL_GRID = TeamFoulGridSpec()
@@ -89,16 +127,50 @@ FOUL_SYMBOLS = {
     "U": (FoulKind.UNSPORTSMANLIKE, None),
     "U1": (FoulKind.UNSPORTSMANLIKE, 1),
     "U2": (FoulKind.UNSPORTSMANLIKE, 2),
+    "U3": (FoulKind.UNSPORTSMANLIKE, 3),
     "D": (FoulKind.DISQUALIFYING, None),
+    "D2": (FoulKind.DISQUALIFYING, 2),
     "GD": (FoulKind.DISQUALIFYING, None),
+    "PC": (FoulKind.PERSONAL, None),
+    "TC": (FoulKind.TECHNICAL, None),
+    "UC": (FoulKind.UNSPORTSMANLIKE, None),
+    "DC": (FoulKind.DISQUALIFYING, None),
 }
 
 
 def parse_foul_symbol(symbol: str | None) -> tuple[FoulKind, int | None]:
+    parsed = parse_foul_symbol_details(symbol)
+    return parsed.kind, parsed.free_throws
+
+
+def parse_foul_symbol_details(symbol: str | None) -> ParsedFoulSymbol:
     if symbol is None:
-        return FoulKind.UNKNOWN, None
+        return ParsedFoulSymbol(FoulKind.UNKNOWN, None, None, False, False, False)
     normalized = symbol.strip().upper().replace(" ", "")
-    return FOUL_SYMBOLS.get(normalized, (FoulKind.UNKNOWN, None))
+    kind, free_throws = FOUL_SYMBOLS.get(
+        normalized,
+        (FoulKind.UNKNOWN, None),
+    )
+    cancelled = normalized in {"PC", "TC", "UC", "DC"}
+    fighting = normalized == "GD"
+    counts_as_team_foul = (
+        kind in {
+            FoulKind.PERSONAL,
+            FoulKind.TECHNICAL,
+            FoulKind.UNSPORTSMANLIKE,
+            FoulKind.DISQUALIFYING,
+        }
+        and not fighting
+        and not cancelled
+    )
+    return ParsedFoulSymbol(
+        kind=kind,
+        free_throws=free_throws,
+        normalized=normalized,
+        cancelled_penalty=cancelled,
+        counts_as_team_foul=counts_as_team_foul,
+        fighting=fighting,
+    )
 
 
 def classify_team_foul_cell(
@@ -332,6 +404,142 @@ def _fit_five_boundaries(lines: list[int], width: int) -> list[int]:
     return []
 
 
+def _fit_player_foul_columns(lines: list[int], width: int) -> list[int]:
+    if len(lines) < 4:
+        return []
+    candidates = sorted(set(lines))
+    if len(candidates) == 4:
+        candidates = [0, *candidates, width - 1]
+    elif len(candidates) == 5:
+        if candidates[0] > width * 0.10:
+            candidates = [0, *candidates]
+        elif candidates[-1] < width * 0.90:
+            candidates = [*candidates, width - 1]
+    if len(candidates) < 6:
+        return []
+
+    best: tuple[float, list[int]] | None = None
+    for start_index in range(len(candidates)):
+        for end_index in range(start_index + 5, len(candidates)):
+            start = candidates[start_index]
+            end = candidates[end_index]
+            spacing = (end - start) / 5.0
+            if spacing <= 0:
+                continue
+            chosen: list[int] = []
+            error = 0.0
+            for slot in range(6):
+                predicted = start + slot * spacing
+                nearest = min(candidates, key=lambda value: abs(value - predicted))
+                delta = abs(nearest - predicted)
+                if delta > max(3.0, width * 0.035):
+                    chosen = []
+                    break
+                chosen.append(nearest)
+                error += delta
+            if len(chosen) != 6 or len(set(chosen)) != 6:
+                continue
+            edge_penalty = abs(chosen[0]) + abs((width - 1) - chosen[-1])
+            score = error + edge_penalty * 0.15
+            if best is None or score < best[0]:
+                best = (score, chosen)
+    return best[1] if best is not None else []
+
+
+def _fit_player_foul_rows(
+    lines: list[int],
+    *,
+    expected_top: int,
+    expected_bottom: int,
+    rows: int,
+) -> list[int]:
+    if len(lines) < rows - 1:
+        return []
+    candidates = sorted(set(lines))
+    span = expected_bottom - expected_top
+    tolerance = max(5.0, span / max(rows, 1) * 0.45)
+    if not any(abs(line - expected_top) <= tolerance for line in candidates):
+        candidates.append(expected_top)
+    if not any(abs(line - expected_bottom) <= tolerance for line in candidates):
+        candidates.append(expected_bottom)
+    candidates.sort()
+    step = span / rows
+    fitted: list[int] = []
+    for index in range(rows + 1):
+        predicted = expected_top + index * step
+        nearest = min(candidates, key=lambda value: abs(value - predicted))
+        if abs(nearest - predicted) > tolerance:
+            return []
+        fitted.append(nearest)
+    if len(set(fitted)) != rows + 1:
+        return []
+    return fitted
+
+
+def detect_player_foul_grid(
+    block: np.ndarray,
+    *,
+    side: str,
+    grid: PlayerFoulGridSpec = PLAYER_FOUL_GRID,
+) -> PlayerFoulGridDetection:
+    """Detecta as 5 colunas e as 12 linhas reais de faltas de jogadores."""
+    normalized_side = side.upper()
+    if normalized_side not in {"A", "B"}:
+        raise ValueError("side deve ser A ou B")
+    rgb = _as_rgb(block).astype(np.float32, copy=False)
+    gray = 0.299 * rgb[..., 0] + 0.587 * rgb[..., 1] + 0.114 * rgb[..., 2]
+    dark = gray < 145
+    height, width = dark.shape
+    expected_top = _player_foul_data_top(block, side=normalized_side, grid=grid)
+    expected_bottom = _player_foul_data_bottom(block, side=normalized_side, grid=grid)
+    if expected_bottom <= expected_top:
+        return PlayerFoulGridDetection(tuple(), tuple(), 0.0)
+
+    data_dark = dark[expected_top:expected_bottom]
+    x_lines: list[int] = []
+    for threshold in (0.72, 0.62, 0.52, 0.42, 0.32):
+        candidates = _line_centers(data_dark.mean(axis=0), threshold=threshold)
+        fitted = _fit_player_foul_columns(candidates, width)
+        if len(fitted) == 6:
+            x_lines = fitted
+            break
+    if len(x_lines) != 6:
+        return PlayerFoulGridDetection(tuple(), tuple(), 0.0)
+
+    interior_left = max(0, x_lines[0] + 1)
+    interior_right = min(width, x_lines[-1])
+    if interior_right <= interior_left:
+        return PlayerFoulGridDetection(tuple(), tuple(), 0.0)
+    profile = dark[:, interior_left:interior_right].mean(axis=1)
+    y_lines: list[int] = []
+    for threshold in (0.58, 0.50, 0.42, 0.34):
+        candidates = _line_centers(profile, threshold=threshold)
+        fitted = _fit_player_foul_rows(
+            candidates,
+            expected_top=expected_top,
+            expected_bottom=expected_bottom,
+            rows=grid.roster_rows,
+        )
+        if len(fitted) == grid.roster_rows + 1:
+            y_lines = fitted
+            break
+    if len(y_lines) != grid.roster_rows + 1:
+        return PlayerFoulGridDetection(tuple(x_lines), tuple(), 0.0)
+
+    x_span = x_lines[-1] - x_lines[0]
+    y_span = y_lines[-1] - y_lines[0]
+    confidence = min(
+        1.0,
+        0.5 * x_span / max(width, 1)
+        + 0.5 * y_span / max(expected_bottom - expected_top, 1),
+    )
+    return PlayerFoulGridDetection(
+        x_lines=tuple(x_lines),
+        y_lines=tuple(y_lines),
+        confidence=round(float(confidence), 4),
+    )
+
+
 def _iter_detected_team_foul_crops(
     block: np.ndarray,
     detection: TeamFoulGridDetection,
@@ -514,6 +722,112 @@ def detect_half_separator(
     )
 
 
+def classify_foul_terminal(
+    image: np.ndarray,
+    *,
+    min_ink_ratio: float = 0.012,
+) -> FoulTerminalObservation | None:
+    if image.size == 0 or image.shape[0] == 0 or image.shape[1] == 0:
+        return None
+    red_mask, blue_mask = colored_ink_masks(image)
+    mask = red_mask | blue_mask
+    ink_ratio = float(mask.mean())
+    if ink_ratio < min_ink_ratio:
+        return None
+    color = _dominant_color(red_mask, blue_mask)
+    row_coverage = mask.mean(axis=1)
+    column_coverage = mask.mean(axis=0)
+    horizontal = float(row_coverage.max())
+    vertical = float(column_coverage.max())
+    if horizontal >= 0.72:
+        return FoulTerminalObservation(
+            FoulTerminalKind.CLOSURE_STROKE,
+            color,
+            round(min(1.0, 0.55 + horizontal * 0.45), 4),
+        )
+    height = mask.shape[0]
+    top = float(mask[: max(1, height // 3)].mean(axis=1).max())
+    middle_start = max(0, height // 3)
+    middle_end = max(middle_start + 1, 2 * height // 3)
+    top_rows = mask[: max(1, height // 3)].mean(axis=1)
+    middle_rows = mask[middle_start:middle_end].mean(axis=1)
+    middle = float(middle_rows.max())
+    strong_top_rows = int(np.count_nonzero(top_rows >= 0.52))
+    strong_middle_rows = int(np.count_nonzero(middle_rows >= 0.42))
+    top_run = max(
+        (_longest_true_run(row) / max(mask.shape[1], 1) for row in mask[: max(1, height // 3)]),
+        default=0.0,
+    )
+    middle_run = max(
+        (_longest_true_run(row) / max(mask.shape[1], 1) for row in mask[middle_start:middle_end]),
+        default=0.0,
+    )
+    f_score = min(vertical / 0.60, 1.0) * 0.45 + min(top / 0.50, 1.0) * 0.30 + min(middle / 0.38, 1.0) * 0.25
+    yy, xx = np.nonzero(mask)
+    bbox = mask[yy.min() : yy.max() + 1, xx.min() : xx.max() + 1]
+    right_quarter = bbox[:, max(0, 3 * bbox.shape[1] // 4) :]
+    right_side_rows = float(right_quarter.any(axis=1).mean()) if right_quarter.size else 0.0
+    right_eighth = bbox[:, max(0, 7 * bbox.shape[1] // 8) :]
+    right_edge_rows = float(right_eighth.any(axis=1).mean()) if right_eighth.size else 0.0
+    # ``F`` is terminal and must not steal ordinary foul symbols (especially
+    # handwritten P/P1-P3). Keep this deliberately conservative: uncertain
+    # cells continue through the normal foul recognizer and human review.
+    if (
+        f_score >= 0.92
+        and vertical >= 0.72
+        and top >= 0.52
+        and middle >= 0.42
+        and strong_top_rows >= 3
+        and strong_middle_rows >= 3
+        and top_run >= 0.48
+        and middle_run >= 0.34
+        and ink_ratio <= 0.38
+        and right_side_rows <= 0.48
+        and right_edge_rows <= 0.30
+    ):
+        return FoulTerminalObservation(
+            FoulTerminalKind.DISQUALIFICATION,
+            color,
+            round(min(1.0, f_score), 4),
+        )
+    return None
+
+
+def _longest_true_run(row: np.ndarray) -> int:
+    values = np.flatnonzero(row)
+    if len(values) == 0:
+        return 0
+    best = current = 1
+    previous = int(values[0])
+    for value in values[1:]:
+        current_value = int(value)
+        if current_value == previous + 1:
+            current += 1
+            best = max(best, current)
+        else:
+            current = 1
+        previous = current_value
+    return best
+
+
+def _row_slot_bounds(
+    width: int,
+    *,
+    slots: int,
+    x_lines: tuple[int, ...] | None,
+) -> list[tuple[int, int]]:
+    if x_lines is not None and len(x_lines) == slots + 1:
+        return [
+            (max(0, x_lines[index]), min(width, x_lines[index + 1]))
+            for index in range(slots)
+        ]
+    slot_width = width / slots
+    return [
+        (round(index * slot_width), round((index + 1) * slot_width))
+        for index in range(slots)
+    ]
+
+
 def analyze_player_foul_row(
     row_image: np.ndarray,
     *,
@@ -521,24 +835,51 @@ def analyze_player_foul_row(
     jersey: int,
     grid: PlayerFoulGridSpec = PLAYER_FOUL_GRID,
     recognizer: FoulSymbolRecognizer | None = None,
+    x_lines: tuple[int, ...] | None = None,
+    terminals: list[FoulTerminal] | None = None,
+    grid_aligned: bool = True,
 ) -> list[FoulEvent]:
     separator = detect_half_separator(row_image, slots=grid.slots)
     height, width = row_image.shape[:2]
-    slot_width = width / grid.slots
+    slot_bounds = _row_slot_bounds(width, slots=grid.slots, x_lines=x_lines)
     events: list[FoulEvent] = []
 
-    for index in range(grid.slots):
-        left = round(index * slot_width)
-        right = round((index + 1) * slot_width)
+    for index, (left, right) in enumerate(slot_bounds):
         margin_x = round((right - left) * grid.inner_margin)
         margin_y = round(height * grid.inner_margin)
-        cell = row_image[
+        raw_cell = row_image[
             margin_y : max(margin_y + 1, height - margin_y),
             left + margin_x : max(left + margin_x + 1, right - margin_x),
         ]
+        terminal = classify_foul_terminal(raw_cell)
+        if terminal is not None:
+            if terminals is not None:
+                terminals.append(
+                    FoulTerminal(
+                        team=team.upper(),
+                        jersey=jersey,
+                        slot=index + 1,
+                        kind=terminal.kind,
+                        raw_symbol=(
+                            "F"
+                            if terminal.kind is FoulTerminalKind.DISQUALIFICATION
+                            else "-"
+                        ),
+                        ink_color=terminal.ink_color.value,
+                        confidence=terminal.confidence,
+                        status=(
+                            DecisionStatus.ACCEPTED
+                            if grid_aligned and terminal.confidence >= 0.85
+                            else DecisionStatus.REVIEW
+                        ),
+                    )
+                )
+            break
+
+        cell = clean_player_foul_cell(raw_cell)
         red_mask, blue_mask = colored_ink_masks(cell)
         mask = red_mask | blue_mask
-        if float(mask.mean()) < 0.006:
+        if float(mask.mean()) < grid.min_ink_ratio:
             continue
 
         color = _dominant_color(red_mask, blue_mask)
@@ -557,7 +898,25 @@ def analyze_player_foul_row(
             raw_symbol = recognition.value
             symbol_confidence = recognition.confidence
             symbol_status = recognition.status
-            kind, free_throws = parse_foul_symbol(raw_symbol)
+            if raw_symbol is not None and raw_symbol.strip().upper() == "F":
+                if terminals is not None:
+                    terminals.append(
+                        FoulTerminal(
+                            team=team.upper(),
+                            jersey=jersey,
+                            slot=index + 1,
+                            kind=FoulTerminalKind.DISQUALIFICATION,
+                            raw_symbol="F",
+                            ink_color=color.value,
+                            confidence=symbol_confidence,
+                            status=symbol_status,
+                        )
+                    )
+                break
+            parsed = parse_foul_symbol_details(raw_symbol)
+            kind, free_throws = parsed.kind, parsed.free_throws
+        else:
+            parsed = parse_foul_symbol_details(None)
 
         period_confidence = separator.confidence if period is not None else None
         confidence_values = [
@@ -570,6 +929,9 @@ def analyze_player_foul_row(
             period is not None
             and kind is not FoulKind.UNKNOWN
             and symbol_status is DecisionStatus.ACCEPTED
+            and period_confidence is not None
+            and period_confidence >= 0.60
+            and grid_aligned
         )
         events.append(
             FoulEvent(
@@ -581,6 +943,9 @@ def analyze_player_foul_row(
                 free_throws=free_throws,
                 raw_symbol=raw_symbol,
                 ink_color=color.value,
+                cancelled_penalty=parsed.cancelled_penalty,
+                counts_as_team_foul=parsed.counts_as_team_foul,
+                fighting=parsed.fighting,
                 confidence=confidence,
                 status=(
                     DecisionStatus.ACCEPTED
@@ -592,6 +957,46 @@ def analyze_player_foul_row(
     return events
 
 
+def clean_player_foul_cell(
+    image: np.ndarray,
+    *,
+    padding: int = 1,
+    edge_fraction: float = 0.10,
+) -> np.ndarray:
+    """Remove linhas impressas coloridas que atravessam a celula de falta.
+
+    Algumas digitalizacoes tornam as linhas azuis/roxas da grade indistintas
+    da caneta para o filtro de cor. Linhas da grade atravessam quase toda a
+    largura/altura da celula; simbolos manuscritos ocupam apenas parte dela.
+    """
+    rgb = _as_rgb(image).copy()
+    if rgb.size == 0:
+        return rgb
+
+    edge_width = max(1, round(rgb.shape[1] * edge_fraction))
+    rgb[:, :edge_width, :] = 255
+    rgb[:, rgb.shape[1] - edge_width :, :] = 255
+
+    red_mask, blue_mask = colored_ink_masks(rgb)
+    colored_mask = red_mask | blue_mask
+    row_lines = np.flatnonzero(
+        colored_mask.mean(axis=1) >= 0.60
+    )
+
+    rows_to_clear = _expanded_indexes(row_lines, rgb.shape[0], padding)
+    if rows_to_clear.size:
+        rgb[rows_to_clear, :, :] = 255
+    return rgb
+
+
+def _expanded_indexes(indexes: np.ndarray, size: int, padding: int) -> np.ndarray:
+    if indexes.size == 0:
+        return indexes
+    offsets = range(-max(padding, 0), max(padding, 0) + 1)
+    expanded = np.concatenate([indexes + offset for offset in offsets])
+    return np.unique(expanded[(expanded >= 0) & (expanded < size)])
+
+
 def extract_player_fouls(
     normalized_image: np.ndarray,
     *,
@@ -601,6 +1006,26 @@ def extract_player_fouls(
     grid: PlayerFoulGridSpec = PLAYER_FOUL_GRID,
     recognizer: FoulSymbolRecognizer | None = None,
 ) -> list[FoulEvent]:
+    events, _ = extract_player_foul_data(
+        normalized_image,
+        team=team,
+        jerseys=jerseys,
+        template=template,
+        grid=grid,
+        recognizer=recognizer,
+    )
+    return events
+
+
+def extract_player_foul_data(
+    normalized_image: np.ndarray,
+    *,
+    team: str,
+    jerseys: list[int],
+    template: TemplateSpec = FECABA_V1,
+    grid: PlayerFoulGridSpec = PLAYER_FOUL_GRID,
+    recognizer: FoulSymbolRecognizer | None = None,
+) -> tuple[list[FoulEvent], list[FoulTerminal]]:
     side = team.upper()
     if side not in {"A", "B"}:
         raise ValueError("team deve ser A ou B")
@@ -611,11 +1036,33 @@ def extract_player_fouls(
 
     region_name = f"team_{side.lower()}_player_fouls"
     block = crop_region(normalized_image, template.region(region_name))
-    data_top = round(block.shape[0] * grid.header_fraction)
-    data = block[data_top:]
-    row_height = data.shape[0] / grid.roster_rows
     events: list[FoulEvent] = []
+    terminals: list[FoulTerminal] = []
+    detected = detect_player_foul_grid(block, side=side, grid=grid)
 
+    if detected.valid:
+        for index, jersey in enumerate(jerseys):
+            top = detected.y_lines[index]
+            bottom = detected.y_lines[index + 1]
+            row = block[top:bottom]
+            events.extend(
+                analyze_player_foul_row(
+                    row,
+                    team=side,
+                    jersey=jersey,
+                    grid=grid,
+                    recognizer=recognizer,
+                    x_lines=detected.x_lines,
+                    terminals=terminals,
+                    grid_aligned=True,
+                )
+            )
+        return events, terminals
+
+    data_top = _player_foul_data_top(block, side=side, grid=grid)
+    data_bottom = _player_foul_data_bottom(block, side=side, grid=grid)
+    data = block[data_top:data_bottom]
+    row_height = data.shape[0] / grid.roster_rows
     for index, jersey in enumerate(jerseys):
         top = round(index * row_height)
         bottom = round((index + 1) * row_height)
@@ -627,9 +1074,49 @@ def extract_player_fouls(
                 jersey=jersey,
                 grid=grid,
                 recognizer=recognizer,
+                terminals=terminals,
+                grid_aligned=False,
             )
         )
-    return events
+    return events, terminals
+
+
+def _player_foul_data_top(
+    block: np.ndarray,
+    *,
+    side: str,
+    grid: PlayerFoulGridSpec = PLAYER_FOUL_GRID,
+) -> int:
+    """Retorna o inicio das linhas de jogadores no bloco de faltas.
+
+    No formulario FECABA v1 o bloco da Equipe A inclui uma faixa maior acima
+    do cabecalho de faltas (desafio tecnico), enquanto a Equipe B comeca muito
+    mais perto do cabecalho. As fracoes ficam no spec para manter essa
+    assimetria explicita e compartilhada entre analise e dataset.
+    """
+    normalized_side = side.upper()
+    if normalized_side not in {"A", "B"}:
+        raise ValueError("side deve ser A ou B")
+    fraction = (
+        grid.team_a_header_fraction
+        if normalized_side == "A"
+        else grid.header_fraction
+    )
+    return round(block.shape[0] * fraction)
+
+
+def _player_foul_data_bottom(
+    block: np.ndarray,
+    *,
+    side: str,
+    grid: PlayerFoulGridSpec = PLAYER_FOUL_GRID,
+) -> int:
+    normalized_side = side.upper()
+    if normalized_side not in {"A", "B"}:
+        raise ValueError("side deve ser A ou B")
+    if normalized_side == "A":
+        return block.shape[0]
+    return round(block.shape[0] * (1.0 - grid.team_b_footer_fraction))
 
 
 def _period_for_foul(

@@ -5,18 +5,20 @@ from unittest.mock import patch
 import numpy as np
 from PIL import Image, ImageDraw
 
-from sumula_reader.models import ScoringEvent, ShotType
+from sumula_reader.models import DecisionStatus, ScoringEvent, ShotType
 from sumula_reader.scoring import (
     InkColor,
     ScoreMarkObservation,
     ScoreMarkKind,
     ScoringCell,
+    _detect_vertical_lines,
     _looks_like_closure_stroke,
     assign_periods_from_color_runs,
     classify_score_mark,
     detect_jersey_circle,
     extract_scoring_events,
     iter_scoring_cells,
+    select_plausible_scoring_sequences,
 )
 from sumula_reader.template import FECABA_V1, NormalizedRect
 
@@ -44,6 +46,54 @@ class FixedScoringDecisionEngine:
 
 
 class ScoringTests(unittest.TestCase):
+    def test_vertical_grid_recovers_missing_outer_lines(self):
+        width = 1200
+        dark = np.zeros((600, width), dtype=bool)
+        lines = [0, 70, 132, 194, 274, 354, 416, 478, 558, 638, 719, 801, 881, 961, 1043, 1126, 1199]
+        for x in lines[1:-1]:
+            dark[:, max(0, x - 1) : min(width, x + 2)] = True
+
+        detected = _detect_vertical_lines(dark, expected=17)
+
+        self.assertEqual(len(detected), 17)
+        self.assertLessEqual(abs(detected[0] - lines[0]), 2)
+        self.assertLessEqual(abs(detected[-1] - lines[-1]), 2)
+
+    def test_vertical_grid_merges_split_lines_and_ignores_short_noise(self):
+        width = 1208
+        dark = np.zeros((600, width), dtype=bool)
+        lines = [3, 71, 132, 194, 272, 350, 412, 473, 551, 630, 711, 794, 874, 953, 1037, 1121, 1203]
+        for x in lines:
+            dark[:, max(0, x - 1) : min(width, x + 2)] = True
+        # Fragmenta uma linha em duas colunas verticais proximas; ambas devem
+        # continuar representando uma unica divisoria da grade.
+        dark[:, 69:75] = False
+        dark[:, 68:70] = True
+        dark[:, 73:75] = True
+        # Risco manuscrito curto: forte localmente, mas insuficiente para ser
+        # promovido a linha estrutural da tabela.
+        dark[:210, 225:228] = True
+
+        detected = _detect_vertical_lines(dark, expected=17)
+
+        self.assertEqual(len(detected), 17)
+        self.assertTrue(all(abs(a - b) <= 4 for a, b in zip(detected, lines)))
+
+    def test_vertical_grid_recovers_two_missing_internal_dividers(self):
+        width = 1213
+        dark = np.zeros((600, width), dtype=bool)
+        lines = [9, 68, 127, 195, 266, 344, 406, 467, 546, 625, 708, 791, 872, 954, 1038, 1124, 1207]
+        missing = {1, 3}
+        for index, x in enumerate(lines):
+            if index in missing:
+                continue
+            dark[:, max(0, x - 1) : min(width, x + 2)] = True
+
+        detected = _detect_vertical_lines(dark, expected=17)
+
+        self.assertEqual(len(detected), 17)
+        self.assertTrue(all(abs(a - b) <= 12 for a, b in zip(detected, lines)))
+
     def test_free_throw_dot(self):
         image = Image.fromarray(blank())
         draw = ImageDraw.Draw(image)
@@ -99,6 +149,29 @@ class ScoringTests(unittest.TestCase):
         ]
         assign_periods_from_color_runs(events)
         self.assertEqual([event.period for event in events], [1, 1, 2, 3, 4])
+
+    def test_first_blue_scoring_run_maps_to_second_quarter(self):
+        events = [
+            ScoringEvent("A", None, 2, 7, ShotType.TWO_POINT, 2, "blue"),
+        ]
+        assign_periods_from_color_runs(events)
+        self.assertEqual(events[0].period, 2)
+
+    def test_running_score_validates_without_reclassifying_visual_mark(self):
+        event = ScoringEvent(
+            "A",
+            None,
+            3,
+            7,
+            ShotType.TWO_POINT,
+            2,
+            "red",
+            confidence=0.95,
+        )
+        selected = select_plausible_scoring_sequences([event])
+        self.assertEqual(selected[0].shot_type, ShotType.TWO_POINT)
+        self.assertEqual(selected[0].points, 2)
+        self.assertEqual(selected[0].status, DecisionStatus.REVIEW)
 
     def test_jev_resolves_only_ambiguous_scoring_mark(self):
         cell = ScoringCell(

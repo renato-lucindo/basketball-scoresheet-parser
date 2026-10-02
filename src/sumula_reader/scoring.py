@@ -113,6 +113,14 @@ def classify_score_mark(
     *,
     min_ink_ratio: float = 0.004,
 ) -> ScoreMarkObservation:
+    if image.size == 0 or image.shape[0] == 0 or image.shape[1] == 0:
+        return ScoreMarkObservation(
+            kind=ScoreMarkKind.EMPTY,
+            ink_color=InkColor.UNKNOWN,
+            confidence=1.0,
+            ink_ratio=0.0,
+            elongation=1.0,
+        )
     red_mask, blue_mask = colored_ink_masks(image)
     mask = red_mask | blue_mask
     ink_ratio = float(mask.mean())
@@ -439,66 +447,21 @@ def extract_scoring_events(
 def select_plausible_scoring_sequences(
     events: list[ScoringEvent],
 ) -> list[ScoringEvent]:
-    """Remove falsos positivos e reconcilia o tipo pela contagem corrente.
-
-    Entre duas cestas consecutivas o placar obrigatoriamente avanca 1, 2 ou
-    3 pontos. Essa regra e mais forte que a classificacao visual isolada do
-    ponto/diagonal e permite recuperar o tipo da cesta quando a marca esta
-    imperfeita.
-    """
+    """Usa a progressao 1..160 como validacao, sem reclassificar a marca."""
     selected: list[ScoringEvent] = []
     for team in ("A", "B"):
         candidates = sorted(
             (event for event in events if event.team == team),
             key=lambda event: event.running_score,
         )
-        if not candidates:
-            continue
-
-        best: dict[int, tuple[float, list[ScoringEvent]]] = {0: (0.0, [])}
-        for event in candidates:
-            score = event.running_score
-            options: list[tuple[float, list[ScoringEvent]]] = []
-            for delta in (1, 2, 3):
-                previous = best.get(score - delta)
-                if previous is None:
-                    continue
-                visual_confidence = event.confidence or 0.0
-                options.append(
-                    (
-                        previous[0] + 1.0 + visual_confidence * 0.25,
-                        previous[1] + [event],
-                    )
-                )
-            if options:
-                best[score] = max(options, key=lambda item: item[0])
-
-        reachable = [score for score in best if score > 0]
-        if not reachable:
-            continue
-        final_score = max(reachable)
-        path = best[final_score][1]
-
         previous_score = 0
-        for event in path:
+        for event in candidates:
             delta = event.running_score - previous_score
-            visual_type = event.shot_type
-            event.points = delta
-            if delta == 1:
-                event.shot_type = ShotType.FREE_THROW
-                expected_visual = ShotType.FREE_THROW
-            elif delta == 2:
-                event.shot_type = ShotType.TWO_POINT
-                expected_visual = ShotType.TWO_POINT
-            else:
-                event.shot_type = ShotType.THREE_POINT
-                expected_visual = ShotType.THREE_POINT
-
-            if visual_type not in (expected_visual, ShotType.AMBIGUOUS):
+            if delta not in {1, 2, 3} or (event.points > 0 and event.points != delta):
                 event.status = DecisionStatus.REVIEW
                 event.confidence = min(event.confidence or 0.0, 0.69)
-            previous_score = event.running_score
-        selected.extend(path)
+            previous_score = max(previous_score, event.running_score)
+            selected.append(event)
 
     return sorted(selected, key=lambda event: (event.team, event.running_score))
 
@@ -524,8 +487,17 @@ def assign_periods_from_color_runs(events: list[ScoringEvent]) -> None:
                 event.status = DecisionStatus.REVIEW
                 continue
 
-            if previous_color is None or color != previous_color:
-                period += 1
+            if previous_color is None:
+                period = 1 if color == InkColor.RED.value else 2
+                previous_color = color
+            elif color != previous_color:
+                possible = (1, 3) if color == InkColor.RED.value else (2, 4)
+                later = [candidate for candidate in possible if candidate > period]
+                if not later:
+                    event.period = None
+                    event.status = DecisionStatus.REVIEW
+                    continue
+                period = later[0]
                 previous_color = color
 
             if period > 4:
@@ -630,12 +602,141 @@ def _iter_scoring_crops(
 
 def _detect_vertical_lines(dark: np.ndarray, *, expected: int) -> list[int]:
     ratio = dark.mean(axis=0)
-    for threshold in (0.65, 0.60, 0.55, 0.50, 0.45, 0.40):
+    width = len(ratio)
+    if expected < 2 or width < expected:
+        return []
+
+    best: tuple[tuple[int, float, float], list[int]] | None = None
+    merge_distance = max(4, round(width * 0.015))
+    for threshold in (0.65, 0.60, 0.55, 0.50, 0.45, 0.40, 0.35, 0.30):
         groups = _contiguous_groups(np.flatnonzero(ratio >= threshold))
         centers = [round((start + end) / 2) for start, end in groups]
-        if len(centers) == expected:
-            return centers
-    return []
+        centers = _merge_vertical_candidates(
+            centers,
+            ratio,
+            max_distance=merge_distance,
+        )
+        fitted, inferred = _complete_vertical_lattice(
+            centers,
+            width=width,
+            expected=expected,
+        )
+        if len(fitted) != expected or inferred > 2:
+            continue
+
+        # Prefere grades apoiadas no maior numero de linhas realmente vistas.
+        # Em empate, privilegia perfis mais escuros e limiares mais altos.
+        anchor_strength = float(
+            np.mean([ratio[min(max(center, 0), width - 1)] for center in centers])
+        )
+        rank = (inferred, -anchor_strength, -threshold)
+        if best is None or rank < best[0]:
+            best = (rank, fitted)
+
+    return best[1] if best is not None else []
+
+
+def _merge_vertical_candidates(
+    centers: list[int],
+    ratio: np.ndarray,
+    *,
+    max_distance: int,
+) -> list[int]:
+    if not centers:
+        return []
+    clusters: list[list[int]] = [[centers[0]]]
+    for center in centers[1:]:
+        if center - clusters[-1][-1] <= max_distance:
+            clusters[-1].append(center)
+        else:
+            clusters.append([center])
+
+    merged: list[int] = []
+    for cluster in clusters:
+        weights = [max(float(ratio[center]), 1e-6) for center in cluster]
+        merged.append(round(float(np.average(cluster, weights=weights))))
+    return merged
+
+
+def _complete_vertical_lattice(
+    centers: list[int],
+    *,
+    width: int,
+    expected: int,
+) -> tuple[list[int], int]:
+    """Completa no maximo duas linhas fracas usando a malha observada.
+
+    As linhas verticais impressas sao muito persistentes, mas bordas podem
+    desaparecer no recorte e uma divisoria pode ficar fraca por rasura. A
+    reconstrucao so acontece quando as demais linhas fornecem ancoras reais e
+    o espacamento resultante continua compativel com a grade.
+    """
+    if len(centers) < expected - 2 or len(centers) > expected or len(centers) < 2:
+        return [], 0
+
+    max_gap = width * 0.09
+    completed: list[int] = [centers[0]]
+    inferred = 0
+    for right in centers[1:]:
+        left = completed[-1]
+        gap = right - left
+        intervals = max(1, int(np.ceil(gap / max_gap)))
+        missing = intervals - 1
+        if inferred + missing > 2:
+            return [], 0
+        for step in range(1, intervals):
+            completed.append(round(left + gap * step / intervals))
+            inferred += 1
+        completed.append(right)
+
+    if len(completed) > expected:
+        return [], 0
+
+    missing_edges = expected - len(completed)
+    if missing_edges:
+        gaps = np.diff(completed)
+        typical = float(np.median(gaps)) if len(gaps) else width / (expected - 1)
+        typical = max(typical, 1.0)
+        left_gap = float(completed[0])
+        right_gap = float((width - 1) - completed[-1])
+
+        best_edge_fit: tuple[float, int, int] | None = None
+        for left_count in range(missing_edges + 1):
+            right_count = missing_edges - left_count
+            cost = 0.0
+            if left_count:
+                cost += abs(left_gap / left_count - typical) / typical
+            else:
+                cost += max(0.0, left_gap / typical - 0.45)
+            if right_count:
+                cost += abs(right_gap / right_count - typical) / typical
+            else:
+                cost += max(0.0, right_gap / typical - 0.45)
+            candidate = (cost, left_count, right_count)
+            if best_edge_fit is None or candidate < best_edge_fit:
+                best_edge_fit = candidate
+
+        assert best_edge_fit is not None
+        _, left_count, right_count = best_edge_fit
+        left_values = [
+            round(completed[0] * step / left_count)
+            for step in range(left_count)
+        ] if left_count else []
+        right_values = [
+            round(
+                completed[-1]
+                + ((width - 1) - completed[-1]) * step / right_count
+            )
+            for step in range(1, right_count + 1)
+        ] if right_count else []
+        completed = left_values + completed + right_values
+        inferred += missing_edges
+
+    if len(completed) != expected:
+        return [], 0
+    if any(second <= first for first, second in zip(completed, completed[1:])):
+        return [], 0
+    return completed, inferred
 
 
 def _horizontal_line_candidates(

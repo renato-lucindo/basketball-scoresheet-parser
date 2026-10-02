@@ -10,14 +10,18 @@ from sumula_reader.fouls import (
     TeamFoulCellKind,
     _reconcile_team_foul_cells,
     analyze_player_foul_row,
+    classify_foul_terminal,
     classify_team_foul_cell,
+    clean_player_foul_cell,
     detect_half_separator,
+    detect_player_foul_grid,
     extract_team_foul_indicators,
     parse_foul_symbol,
+    parse_foul_symbol_details,
 )
-from sumula_reader.models import DecisionStatus, FoulKind
+from sumula_reader.models import DecisionStatus, FoulKind, FoulTerminalKind
 from sumula_reader.recognition import RecognitionCandidate, RecognitionResult
-from sumula_reader.scoring import InkColor
+from sumula_reader.scoring import InkColor, colored_ink_masks
 
 
 RED = (190, 45, 45)
@@ -105,6 +109,43 @@ class FoulTests(unittest.TestCase):
         self.assertEqual(count, 2)
         self.assertFalse(review)
 
+    def test_player_foul_cleaner_removes_long_colored_grid_line(self):
+        image = Image.fromarray(blank(100, 70))
+        draw = ImageDraw.Draw(image)
+        draw.line((0, 35, 99, 35), fill=BLUE, width=3)
+        cleaned = clean_player_foul_cell(np.asarray(image))
+        _, blue_mask = colored_ink_masks(cleaned)
+        self.assertEqual(int(blue_mask.sum()), 0)
+
+    def test_player_foul_cleaner_removes_grid_corner(self):
+        image = Image.fromarray(blank(100, 70))
+        draw = ImageDraw.Draw(image)
+        draw.line((2, 0, 2, 69), fill=BLUE, width=4)
+        draw.line((0, 35, 99, 35), fill=BLUE, width=3)
+        cleaned = clean_player_foul_cell(np.asarray(image))
+        _, blue_mask = colored_ink_masks(cleaned)
+        self.assertEqual(int(blue_mask.sum()), 0)
+
+    def test_player_foul_cleaner_preserves_handwritten_symbol(self):
+        image = Image.fromarray(blank(100, 70))
+        draw = ImageDraw.Draw(image)
+        draw.line((30, 12, 30, 58), fill=BLUE, width=5)
+        draw.arc((30, 12, 65, 38), 270, 90, fill=BLUE, width=5)
+        cleaned = clean_player_foul_cell(np.asarray(image))
+        _, blue_mask = colored_ink_masks(cleaned)
+        self.assertGreater(int(blue_mask.sum()), 50)
+
+    def test_player_foul_row_ignores_colored_horizontal_grid_line(self):
+        image = Image.fromarray(blank(250, 50))
+        draw = ImageDraw.Draw(image)
+        draw.line((0, 25, 249, 25), fill=BLUE, width=3)
+        events = analyze_player_foul_row(
+            np.asarray(image),
+            team="A",
+            jersey=7,
+        )
+        self.assertEqual(events, [])
+
     def test_jev_resolves_only_ambiguous_team_foul_cell(self):
         x = TeamFoulCellObservation(
             TeamFoulCellKind.X,
@@ -161,13 +202,13 @@ class FoulTests(unittest.TestCase):
         draw.line((100, 0, 100, 49), fill=BLUE, width=4)
 
         # Slot 1 vermelho -> Q1
-        draw.text((15, 12), "P", fill=RED)
+        draw.rectangle((15, 10, 24, 32), fill=RED)
         # Slot 2 azul -> Q2
-        draw.text((65, 12), "P", fill=BLUE)
+        draw.rectangle((65, 10, 74, 32), fill=BLUE)
         # Slot 3 vermelho -> Q3
-        draw.text((115, 12), "P", fill=RED)
+        draw.rectangle((115, 10, 124, 32), fill=RED)
         # Slot 4 azul -> Q4
-        draw.text((165, 12), "P", fill=BLUE)
+        draw.rectangle((165, 10, 174, 32), fill=BLUE)
 
         fouls = analyze_player_foul_row(
             np.asarray(image),
@@ -182,7 +223,7 @@ class FoulTests(unittest.TestCase):
         image = Image.fromarray(blank(250, 50))
         draw = ImageDraw.Draw(image)
         draw.line((100, 0, 100, 49), fill=BLUE, width=4)
-        draw.text((15, 12), "P", fill=RED)
+        draw.rectangle((15, 10, 24, 32), fill=RED)
 
         fouls = analyze_player_foul_row(
             np.asarray(image),
@@ -196,12 +237,85 @@ class FoulTests(unittest.TestCase):
         self.assertEqual(fouls[0].raw_symbol, "P2")
         self.assertEqual(fouls[0].status, DecisionStatus.ACCEPTED)
 
+    def test_horizontal_terminal_stops_later_player_foul_cells(self):
+        image = Image.fromarray(blank(250, 50))
+        draw = ImageDraw.Draw(image)
+        draw.line((100, 0, 100, 49), fill=BLUE, width=4)
+        draw.rectangle((15, 10, 24, 32), fill=RED)
+        draw.line((58, 25, 92, 25), fill=BLUE, width=4)
+        draw.rectangle((115, 10, 124, 32), fill=RED)
+        terminals = []
+
+        fouls = analyze_player_foul_row(
+            np.asarray(image),
+            team="A",
+            jersey=11,
+            recognizer=FixedFoulRecognizer("P2", 0.9),
+            terminals=terminals,
+        )
+
+        self.assertEqual([foul.slot for foul in fouls], [1])
+        self.assertEqual(len(terminals), 1)
+        self.assertEqual(terminals[0].kind, FoulTerminalKind.CLOSURE_STROKE)
+
+    def test_p_like_symbol_is_not_misclassified_as_terminal_f(self):
+        image = Image.fromarray(blank(44, 24))
+        draw = ImageDraw.Draw(image)
+        draw.line((8, 3, 8, 20), fill=RED, width=3)
+        draw.arc((7, 3, 26, 15), 270, 90, fill=RED, width=3)
+        draw.line((25, 7, 25, 11), fill=RED, width=3)
+
+        self.assertIsNone(classify_foul_terminal(np.asarray(image)))
+
+    def test_clear_f_shape_is_terminal_disqualification(self):
+        image = Image.fromarray(blank(44, 24))
+        draw = ImageDraw.Draw(image)
+        draw.line((8, 2, 8, 21), fill=BLUE, width=4)
+        draw.line((8, 3, 34, 3), fill=BLUE, width=4)
+        draw.line((8, 11, 28, 11), fill=BLUE, width=4)
+
+        terminal = classify_foul_terminal(np.asarray(image))
+        self.assertIsNotNone(terminal)
+        self.assertEqual(terminal.kind, FoulTerminalKind.DISQUALIFICATION)
+
+    def test_player_foul_grid_detects_five_real_cells_and_twelve_rows(self):
+        image = Image.fromarray(blank(250, 600))
+        draw = ImageDraw.Draw(image)
+        top = round(600 * 0.085)
+        bottom = round(600 * 0.92)
+        for x in (0, 50, 100, 150, 200, 249):
+            draw.line((x, top, x, bottom), fill=(0, 0, 0), width=2)
+        for index in range(13):
+            y = round(top + (bottom - top) * index / 12)
+            draw.line((0, y, 249, y), fill=(0, 0, 0), width=2)
+
+        detected = detect_player_foul_grid(np.asarray(image), side="B")
+
+        self.assertTrue(detected.valid)
+        self.assertEqual(len(detected.x_lines), 6)
+        self.assertEqual(len(detected.y_lines), 13)
+
     def test_parse_foul_symbol(self):
         self.assertEqual(parse_foul_symbol("P2"), (FoulKind.PERSONAL, 2))
         self.assertEqual(
             parse_foul_symbol(" u1 "),
             (FoulKind.UNSPORTSMANLIKE, 1),
         )
+        self.assertEqual(
+            parse_foul_symbol("U3"),
+            (FoulKind.UNSPORTSMANLIKE, 3),
+        )
+        self.assertEqual(
+            parse_foul_symbol("D2"),
+            (FoulKind.DISQUALIFYING, 2),
+        )
+        cancelled = parse_foul_symbol_details("Pc")
+        self.assertEqual(cancelled.kind, FoulKind.PERSONAL)
+        self.assertTrue(cancelled.cancelled_penalty)
+        self.assertFalse(cancelled.counts_as_team_foul)
+        fighting = parse_foul_symbol_details("GD")
+        self.assertTrue(fighting.fighting)
+        self.assertFalse(fighting.counts_as_team_foul)
         self.assertEqual(parse_foul_symbol("?"), (FoulKind.UNKNOWN, None))
 
 

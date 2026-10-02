@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+import hashlib
 import json
 import math
 from pathlib import Path
@@ -142,18 +143,26 @@ def _jersey_probability(probabilities: Any, label: str) -> float:
 def _manifest_items(manifest: Path | None, field_type: str, split: str) -> list[dict]:
     if manifest is None or not manifest.exists():
         return []
-    return [
-        item
-        for item in (
-            json.loads(line)
-            for line in manifest.read_text(encoding="utf-8").splitlines()
-            if line.strip()
+    items: list[dict] = []
+    for item in (
+        json.loads(line)
+        for line in manifest.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ):
+        review_state = item.get("review_state")
+        reviewed_ok = (
+            review_state in {"accepted", "adjusted"}
+            if review_state is not None
+            else item.get("status") == "labeled"
         )
-        if item.get("field_type") == field_type
-        and item.get("status") == "labeled"
-        and item.get("split") == split
-        and item.get("label") is not None
-    ]
+        if (
+            item.get("field_type") == field_type
+            and reviewed_ok
+            and item.get("split") == split
+            and item.get("label") is not None
+        ):
+            items.append(item)
+    return items
 
 
 def _manifest_dataset(manifest: Path, items: list[dict], labels: Sequence[str] | None):
@@ -168,7 +177,18 @@ def _manifest_dataset(manifest: Path, items: list[dict], labels: Sequence[str] |
             item = items[index]
             path = manifest.parent / item["crop_path"]
             with Image.open(path) as image:
-                array = np.asarray(image.convert("RGB"))
+                rgb = image.convert("RGB")
+                expected_hash = item.get("crop_image_hash")
+                if expected_hash is not None:
+                    actual_hash = hashlib.sha256(np.asarray(rgb).tobytes()).hexdigest()
+                    if actual_hash != str(expected_hash):
+                        raise ValueError(
+                            f"Crop revisado obsoleto: {item.get('crop_id') or path.name}"
+                        )
+                bbox = item.get("bbox_revised")
+                if isinstance(bbox, list) and len(bbox) == 4:
+                    rgb = rgb.crop(tuple(int(value) for value in bbox))
+                array = np.asarray(rgb)
             tensor = prepare_handwriting_image(array)
             label = str(item["label"])
             if labels is None:
@@ -438,8 +458,8 @@ def train_jersey_sequences(config: SequenceTrainingConfig) -> dict[str, Any]:
     train_sets = [synthetic_train]
     test_sets = [synthetic_test]
     if config.manifest is not None:
-        train_items = _manifest_items(config.manifest, "jersey", "train")
-        test_items = _manifest_items(config.manifest, "jersey", "test")
+        train_items = _manifest_items(config.manifest, "scoring_event", "train")
+        test_items = _manifest_items(config.manifest, "scoring_event", "test")
         if train_items:
             train_sets.append(_manifest_dataset(config.manifest, train_items, None))
         if test_items:
@@ -471,8 +491,8 @@ def train_foul_symbols(config: SequenceTrainingConfig) -> dict[str, Any]:
         )
     ]
     if config.manifest is not None:
-        train_items = _manifest_items(config.manifest, "foul_symbol", "train")
-        test_items = _manifest_items(config.manifest, "foul_symbol", "test")
+        train_items = _manifest_items(config.manifest, "foul_event", "train")
+        test_items = _manifest_items(config.manifest, "foul_event", "test")
         if train_items:
             train_sets.append(
                 _manifest_dataset(config.manifest, train_items, FOUL_LABELS)
@@ -533,7 +553,7 @@ class TorchHandwritingRecognizer:
                 for label in labels
                 if label.isdigit() and 1 <= len(label) <= 2
             ]
-        elif field_type == "foul_symbol" and self.foul is not None:
+        elif field_type in {"foul_event", "foul_symbol"} and self.foul is not None:
             model, checkpoint = self.foul
             with self.torch.no_grad():
                 probabilities = model(tensor)[0].softmax(dim=0).cpu()

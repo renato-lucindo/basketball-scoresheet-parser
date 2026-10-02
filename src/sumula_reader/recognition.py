@@ -18,8 +18,14 @@ FOUL_LABELS = (
     "U",
     "U1",
     "U2",
+    "U3",
     "D",
+    "D2",
     "GD",
+    "Pc",
+    "Tc",
+    "Uc",
+    "Dc",
 )
 
 
@@ -211,7 +217,7 @@ class FoulRecognitionAdapter:
     def recognize(self, image: np.ndarray) -> RecognitionResult:
         result = self.recognizer.recognize(
             image,
-            field_type="foul_symbol",
+            field_type="foul_event",
             allowed_labels=FOUL_LABELS,
             writer_id=self.writer_id,
         )

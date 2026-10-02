@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 from .imaging import load_document, normalize_document, save_debug_bundle
+from .label_studio_review import REVIEW_STAGES
 from .models import DocumentResult
 from .pipeline import AnalysisContext, analyze_path
 from .template import TEMPLATES, get_template
@@ -115,6 +116,60 @@ def build_parser() -> argparse.ArgumentParser:
         help="Processa todos os gabaritos em vez de apenas o lote piloto",
     )
 
+    review_prepare = sub.add_parser(
+        "dataset-review-prepare",
+        help="Prepara tarefas locais do Label Studio para revisao assistida",
+    )
+    review_prepare.add_argument(
+        "--dataset-root",
+        type=Path,
+        default=Path("datasets/fecaba"),
+    )
+    review_prepare.add_argument(
+        "--stage",
+        required=True,
+        choices=REVIEW_STAGES,
+    )
+    review_prepare.add_argument("--manifest", type=Path)
+    review_prepare.add_argument("--dpi", type=int, default=250)
+    review_prepare.add_argument(
+        "--audit-only",
+        action="store_true",
+        help="Prepara somente a amostra de 10%% marcada para segunda revisao",
+    )
+
+    review_import = sub.add_parser(
+        "dataset-review-import",
+        help="Importa um export JSON do Label Studio e valida a revisao",
+    )
+    review_import.add_argument("export", type=Path)
+    review_import.add_argument(
+        "--dataset-root",
+        type=Path,
+        default=Path("datasets/fecaba"),
+    )
+    review_import.add_argument(
+        "--stage",
+        required=True,
+        choices=REVIEW_STAGES,
+    )
+    review_import.add_argument("--manifest", type=Path)
+    review_import.add_argument(
+        "--audit-only",
+        action="store_true",
+        help="Importa a segunda revisao da amostra de auditoria",
+    )
+
+    review_status_parser = sub.add_parser(
+        "dataset-review-status",
+        help="Mostra o progresso da revisao assistida",
+    )
+    review_status_parser.add_argument(
+        "--dataset-root",
+        type=Path,
+        default=Path("datasets/fecaba"),
+    )
+
     for name, help_text, default_output in (
         ("train-jerseys", "Treina o reconhecedor de camisas", "models/handwriting/jersey.pt"),
         ("train-fouls", "Treina o reconhecedor de simbolos de falta", "models/handwriting/foul.pt"),
@@ -129,7 +184,7 @@ def build_parser() -> argparse.ArgumentParser:
         training.add_argument(
             "--manifest",
             type=Path,
-            default=Path("datasets/fecaba/crops/manifest.jsonl"),
+            default=Path("datasets/fecaba/crops/manifest.reviewed.jsonl"),
         )
         training.add_argument("--epochs", type=int, default=5)
         training.add_argument("--batch-size", type=int, default=128)
@@ -210,6 +265,44 @@ def main() -> None:
             dpi=args.dpi,
         )
         print(json.dumps(result, ensure_ascii=False, indent=2))
+        return
+
+    if args.command == "dataset-review-prepare":
+        from .label_studio_review import prepare_review
+
+        result = prepare_review(
+            args.dataset_root,
+            stage=args.stage,
+            manifest=args.manifest,
+            dpi=args.dpi,
+            audit_only=args.audit_only,
+        )
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return
+
+    if args.command == "dataset-review-import":
+        from .label_studio_review import import_review
+
+        result = import_review(
+            args.dataset_root,
+            args.export,
+            stage=args.stage,
+            manifest=args.manifest,
+            audit_only=args.audit_only,
+        )
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return
+
+    if args.command == "dataset-review-status":
+        from .label_studio_review import review_status
+
+        print(
+            json.dumps(
+                review_status(args.dataset_root),
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
         return
 
     if args.command in {"train-jerseys", "train-fouls"}:

@@ -6,7 +6,7 @@ from pathlib import Path
 import numpy as np
 
 from .decision import DecisionEngine
-from .fouls import extract_player_fouls, extract_team_foul_indicators
+from .fouls import extract_player_foul_data, extract_team_foul_indicators
 from .imaging import load_document, normalize_document
 from .models import DocumentMetadata, DocumentResult, TeamResult
 from .participation import extract_players
@@ -76,7 +76,7 @@ def analyze_image(
             jerseys=jerseys,
             template=template,
         )
-        fouls = extract_player_fouls(
+        fouls, foul_terminals = extract_player_foul_data(
             normalized_image,
             team=side,
             jerseys=jerseys,
@@ -88,6 +88,10 @@ def analyze_image(
             player = players_by_jersey.get(foul.jersey)
             if player is not None:
                 player.fouls.append(foul)
+        for terminal in foul_terminals:
+            player = players_by_jersey.get(terminal.jersey)
+            if player is not None:
+                player.foul_terminals.append(terminal)
 
         teams[side] = TeamResult(
             side=side,

@@ -41,6 +41,19 @@ class CliTests(unittest.TestCase):
         self.assertTrue(args.jev)
         self.assertEqual(args.jev_model, "jev-preview")
 
+    def test_review_commands_are_registered(self):
+        prepare = build_parser().parse_args(
+            ["dataset-review-prepare", "--stage", "scoring"]
+        )
+        imported = build_parser().parse_args(
+            ["dataset-review-import", "export.json", "--stage", "jerseys"]
+        )
+        status = build_parser().parse_args(["dataset-review-status"])
+        self.assertEqual(prepare.command, "dataset-review-prepare")
+        self.assertEqual(prepare.stage, "scoring")
+        self.assertEqual(imported.command, "dataset-review-import")
+        self.assertEqual(status.command, "dataset-review-status")
+
 
 if __name__ == "__main__":
     unittest.main()
