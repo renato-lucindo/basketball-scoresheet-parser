@@ -156,3 +156,16 @@ Before adding a feature, dependency, model, or workflow, ask:
 
 If the answer is no, the work should normally wait until after the current milestone. If the answer is yes, it should also have a measurable acceptance criterion tied to one of the goals above.
 
+## Goal Governance
+
+This document is the source of truth for product direction through FECABA v1.0.
+
+- New work should map to the current milestone, a v1.0 quality gate, or a documented defect that threatens one of them.
+- Work that belongs to a later milestone may be explored only when it does not delay the current milestone or weaken its evidence requirements.
+- A new feature must state which goal or exit criterion it advances and how completion will be measured before implementation begins.
+- Mission, north-star metrics, v1.0 quality gates, milestone exit criteria, or pre-v1.0 scope boundaries should change only through an explicit documented decision, with the reason recorded in the commit/PR that changes this file.
+- Passing tests alone does not justify scope expansion; milestone exit evidence is required before advancing to the next phase.
+- The project should not declare a milestone complete because remaining work is difficult or manual. Its listed exit criteria are the definition of completion.
+
+When a proposed change conflicts with this document, the default is to keep the current project goals and defer the conflicting work until the goals are deliberately revised.
+
