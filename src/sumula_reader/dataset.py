@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+import hashlib
 import json
 from pathlib import Path
 
@@ -17,6 +18,73 @@ class DatasetRecord:
     crop_path: str
     team: str | None = None
     period: int | None = None
+    split: str | None = None
+    source_file: str | None = None
+    running_score: int | None = None
+    event_index: int | None = None
+
+
+def assign_document_split(
+    document_id: str,
+    *,
+    writer_id: str | None = None,
+    seed: str = "sumula-reader-v1",
+    train_ratio: float = 0.70,
+    validation_ratio: float = 0.15,
+) -> str:
+    """Divide por documento/apontador, nunca por crop.
+
+    Quando o apontador e conhecido, ele passa a ser a unidade de agrupamento:
+    todas as sumulas escritas pela mesma pessoa ficam no mesmo split. Sem
+    ``writer_id``, preservamos o comportamento historico baseado no documento.
+    """
+    if not 0 < train_ratio < 1:
+        raise ValueError("train_ratio deve estar entre 0 e 1")
+    if not 0 <= validation_ratio < 1:
+        raise ValueError("validation_ratio deve estar entre 0 e 1")
+    if train_ratio + validation_ratio >= 1:
+        raise ValueError("train + validation deve deixar espaco para test")
+
+    split_key = document_id if writer_id is None else f"writer:{writer_id}"
+    digest = hashlib.sha256(f"{seed}:{split_key}".encode("utf-8")).digest()
+    bucket = int.from_bytes(digest[:8], "big") / float(2**64)
+    if bucket < train_ratio:
+        return "train"
+    if bucket < train_ratio + validation_ratio:
+        return "validation"
+    return "test"
+
+
+def validate_split_isolation(records: list[dict[str, object]]) -> None:
+    """Falha se documento ou apontador aparecerem em mais de um split."""
+    document_splits: dict[str, set[str]] = {}
+    writer_splits: dict[str, set[str]] = {}
+    for record in records:
+        split = record.get("split")
+        if not isinstance(split, str):
+            continue
+        document_id = record.get("document_id")
+        if isinstance(document_id, str):
+            document_splits.setdefault(document_id, set()).add(split)
+        writer_id = record.get("writer_id")
+        if isinstance(writer_id, str) and writer_id:
+            writer_splits.setdefault(writer_id, set()).add(split)
+
+    leaked_documents = sorted(
+        document_id
+        for document_id, splits in document_splits.items()
+        if len(splits) > 1
+    )
+    leaked_writers = sorted(
+        writer_id for writer_id, splits in writer_splits.items() if len(splits) > 1
+    )
+    if leaked_documents or leaked_writers:
+        details: list[str] = []
+        if leaked_documents:
+            details.append("documentos=" + ",".join(leaked_documents))
+        if leaked_writers:
+            details.append("apontadores=" + ",".join(leaked_writers))
+        raise ValueError("Vazamento entre splits: " + "; ".join(details))
 
 
 def save_annotated_crop(

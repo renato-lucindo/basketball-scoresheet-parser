@@ -1,73 +1,69 @@
-# basketball-scoresheet-parser
+# Basketball Scoresheet Parser
 
-Leitor estruturado de sumulas de basquete, inicialmente focado no modelo FECABA.
+[![Tests](https://github.com/renato-lucindo/basketball-scoresheet-parser/actions/workflows/tests.yml/badge.svg)](https://github.com/renato-lucindo/basketball-scoresheet-parser/actions/workflows/tests.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-O MVP extrai e valida:
+## Overview
 
-- equipes e numeros de camisa;
-- jogadores que entraram em quadra;
-- quinteto inicial;
-- apontador;
-- eventos de pontuacao por periodo;
-- faltas individuais e faltas da equipe;
-- parciais e placar final para validacao.
+Basketball Scoresheet Parser extracts structured data from basketball scoresheets. It was initially developed around the FECABA format and provides validation and review workflows for scanned documents.
 
-## Regras de participacao
+The project helps developers, analysts, and basketball organizations transform scoresheets into structured data.
 
-Na coluna de entrada em quadra:
+## Features
 
-- sem `X`: nao participou;
-- `X` azul: participou;
-- `X` vermelho: participou;
-- `X` azul circulado de vermelho: participou e foi titular.
+- Team and player extraction
+- Participation and starting lineup detection
+- Score event extraction by period
+- Team and individual foul analysis
+- Handwriting recognition experiments
+- Dataset and review workflows
+- Confidence-based validation
 
-O leitor mantem observacao, interpretacao, confianca e status separados. Dados ambiguos devem ser enviados para revisao em vez de serem corrigidos silenciosamente.
+## Technology Stack
 
-## Desenvolvimento
+- Python 3.11+
+- Pydantic
+- OpenCV / PyMuPDF (optional)
+- PyTorch (optional)
+- Pytest
+
+## Architecture
+
+The pipeline is organized into normalization, extraction, recognition, validation, and structured output stages.
+
+## Getting Started
+
+Install development dependencies:
 
 ```powershell
-python -m unittest discover -s tests -v
-$env:PYTHONPATH = "src"
-python -m sumula_reader schema
+python -m pip install -e ".[dev]"
 ```
 
-Dependencias pesadas de visao e ML sao opcionais no bootstrap e serao ativadas nas etapas de alinhamento de PDF e reconhecimento manuscrito.
-
-### Inspecao do template FECABA
+Run tests:
 
 ```powershell
-python -m pip install -e ".[vision]"
-scoresheet-parser debug jogo.pdf --output debug/jogo
+python -m pytest -q
 ```
 
-O comando gera a folha normalizada, um overlay das regioes e um crop por
-regiao do MVP. Esse artefato e usado para calibrar o template antes da
-implementacao dos reconhecedores de pontos e faltas.
+## Project Structure
 
-## Estado atual do MVP
+- `src/sumula_reader/`: application code
+- `tests/`: automated tests
+- `datasets/`: datasets and evaluation assets
+- `models/`: local model checkpoints
+- `docs/`: developer documentation
 
-- geometria e normalizacao do template FECABA;
-- participacao e quinteto inicial por cor/marca;
-- pontuacao: lance livre, cesta de 2 e indicio de cesta de 3;
-- separacao inicial dos periodos pela sequencia de cores;
-- faltas da equipe: X, casa inutilizada e limite de quatro marcas;
-- faltas individuais: deteccao de preenchimento, cor e separador do intervalo.
+## Roadmap
 
-O reconhecimento do numero da camisa e do simbolo manuscrito da falta fica
-atras de interfaces proprias e entra no proximo marco. Ate la, leituras que
-dependem do manuscrito devem continuar marcadas para revisao.
+- Support more scoresheet formats
+- Improve recognition models
+- Expand evaluation datasets
+- Improve contributor tooling
 
-### Analise estruturada
+## Contributing
 
-Enquanto o classificador manuscrito ainda nao foi treinado, o roster e
-fornecido como contexto:
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
-    scoresheet-parser analyze jogo.pdf ^
-      --roster-a "4,5,6,7,8,9,10,11,12,13,14" ^
-      --roster-b "4,5,6,7,8,11,12,13,14,15,16,17" ^
-      --writer-id writer_07 ^
-      --output resultado.json
+## License
 
-O JSON ja contem evidencias visuais, periodos, placar calculado, faltas,
-participacao e warnings. Campos que exigem leitura manuscrita permanecem em
-estado de revisao ate que um recognizer seja conectado.
+MIT License.

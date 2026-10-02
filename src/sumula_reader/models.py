@@ -36,6 +36,11 @@ class FoulKind(StrEnum):
     UNKNOWN = "unknown"
 
 
+class FoulTerminalKind(StrEnum):
+    CLOSURE_STROKE = "closure_stroke"
+    DISQUALIFICATION = "disqualification"
+
+
 class ParticipantMark(StrEnum):
     NONE = "none"
     BLUE_X = "blue_x"
@@ -92,6 +97,21 @@ class FoulEvent:
     ink_color: str | None = None
     confidence: float | None = None
     status: DecisionStatus = DecisionStatus.ACCEPTED
+    cancelled_penalty: bool = False
+    counts_as_team_foul: bool = True
+    fighting: bool = False
+
+
+@dataclass(slots=True)
+class FoulTerminal:
+    team: str
+    jersey: int
+    slot: int
+    kind: FoulTerminalKind
+    raw_symbol: str
+    ink_color: str | None = None
+    confidence: float | None = None
+    status: DecisionStatus = DecisionStatus.ACCEPTED
 
 
 @dataclass(slots=True)
@@ -123,6 +143,7 @@ class PlayerResult:
     participation_confidence: float | None = None
     starter_confidence: float | None = None
     fouls: list[FoulEvent] = field(default_factory=list)
+    foul_terminals: list[FoulTerminal] = field(default_factory=list)
     points: int = 0
     free_throws_made: int = 0
     two_points_made: int = 0

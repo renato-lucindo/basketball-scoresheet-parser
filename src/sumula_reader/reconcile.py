@@ -16,6 +16,11 @@ from .validation import validate_team
 def reconcile_team(team: TeamResult) -> TeamResult:
     warnings: list[str] = []
     events = sorted(team.scoring_events, key=lambda event: event.running_score)
+    written_period_scores = {
+        period.number: period.written_score
+        for period in team.periods
+        if period.written_score is not None
+    }
 
     team.warnings = []
     for player in team.players:
@@ -81,9 +86,33 @@ def reconcile_team(team: TeamResult) -> TeamResult:
                 PeriodType.REGULAR if period <= 4 else PeriodType.OVERTIME
             ),
             score=period_points.get(period, 0),
+            written_score=written_period_scores.get(period),
         )
         for period in range(1, max(4, max(period_points, default=4)) + 1)
     ]
+
+    derived_team_fouls: dict[int, int] = defaultdict(int)
+    for player in team.players:
+        for foul in player.fouls:
+            if (
+                foul.period is not None
+                and foul.counts_as_team_foul
+                and not foul.cancelled_penalty
+                and not foul.fighting
+            ):
+                derived_team_fouls[foul.period] += 1
+    for indicator in team.team_fouls:
+        derived = derived_team_fouls.get(indicator.period, 0)
+        matches = (
+            derived >= 4
+            if indicator.x_count == 4
+            else derived == indicator.x_count
+        )
+        if not matches:
+            warnings.append(
+                f"Q{indicator.period}: faltas coletivas derivadas ({derived}) "
+                f"divergem das caixas X ({indicator.x_count})"
+            )
 
     validate_team(team)
     team.warnings = warnings + team.warnings

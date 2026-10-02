@@ -8,6 +8,27 @@ import numpy as np
 from .models import DecisionStatus
 
 
+FOUL_LABELS = (
+    "P",
+    "P1",
+    "P2",
+    "P3",
+    "T",
+    "T1",
+    "U",
+    "U1",
+    "U2",
+    "U3",
+    "D",
+    "D2",
+    "GD",
+    "Pc",
+    "Tc",
+    "Uc",
+    "Dc",
+)
+
+
 @dataclass(frozen=True, slots=True)
 class RecognitionCandidate:
     label: str
@@ -179,3 +200,26 @@ class JerseyRecognitionAdapter:
             return int(result.value), result.confidence
         except ValueError:
             return None, result.confidence
+
+
+class FoulRecognitionAdapter:
+    def __init__(
+        self,
+        recognizer: HandwritingRecognizer,
+        *,
+        writer_id: str | None = None,
+        profile: WriterProfile | None = None,
+    ) -> None:
+        self.recognizer = recognizer
+        self.writer_id = writer_id
+        self.profile = profile
+
+    def recognize(self, image: np.ndarray) -> RecognitionResult:
+        result = self.recognizer.recognize(
+            image,
+            field_type="foul_event",
+            allowed_labels=FOUL_LABELS,
+            writer_id=self.writer_id,
+        )
+        result = constrain_candidates(result, FOUL_LABELS)
+        return apply_writer_profile(result, self.profile)

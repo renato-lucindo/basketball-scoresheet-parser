@@ -2,9 +2,12 @@ import unittest
 
 from sumula_reader.models import (
     DecisionStatus,
+    FoulEvent,
+    FoulKind,
     PlayerResult,
     ScoringEvent,
     ShotType,
+    TeamFoulIndicator,
     TeamResult,
 )
 from sumula_reader.reconcile import reconcile_team
@@ -88,6 +91,47 @@ class ReconcileTests(unittest.TestCase):
         reconcile_team(team)
         self.assertEqual(players[0].points, 2)
         self.assertEqual(team.calculated_score, 2)
+
+    def test_cancelled_penalty_does_not_count_toward_team_fouls(self):
+        player = PlayerResult(jersey=4, participated=True, starter=True)
+        player.fouls = [
+            FoulEvent(
+                "A",
+                4,
+                1,
+                1,
+                FoulKind.PERSONAL,
+                raw_symbol="P",
+                counts_as_team_foul=True,
+            ),
+            FoulEvent(
+                "A",
+                4,
+                2,
+                1,
+                FoulKind.PERSONAL,
+                raw_symbol="Pc",
+                cancelled_penalty=True,
+                counts_as_team_foul=False,
+            ),
+        ]
+        team = TeamResult(
+            side="A",
+            players=[
+                player,
+                *[
+                    PlayerResult(jersey=number, participated=True, starter=True)
+                    for number in range(5, 9)
+                ],
+            ],
+            team_fouls=[TeamFoulIndicator(period=1, x_count=1)],
+        )
+
+        reconcile_team(team)
+
+        self.assertFalse(
+            any("faltas coletivas derivadas" in warning for warning in team.warnings)
+        )
 
 
 if __name__ == "__main__":

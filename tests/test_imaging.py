@@ -1,6 +1,7 @@
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import numpy as np
 from PIL import Image
@@ -9,6 +10,7 @@ from sumula_reader.imaging import (
     NormalizedDocument,
     _find_document_corners_numpy,
     crop_region,
+    normalize_document,
     order_corners,
     save_debug_bundle,
 )
@@ -66,6 +68,26 @@ class ImagingTests(unittest.TestCase):
             corners,
             np.array([[30, 40], [469, 40], [469, 653], [30, 653]]),
             atol=5,
+        )
+
+    def test_normalization_uses_numpy_fallback_when_opencv_finds_no_sheet(self):
+        image = np.full((700, 500, 3), 255, dtype=np.uint8)
+        image[40:44, 30:470] = 0
+        image[650:654, 30:470] = 0
+        image[40:654, 30:34] = 0
+        image[40:654, 466:470] = 0
+
+        with (
+            patch("sumula_reader.imaging._cv2", return_value=object()),
+            patch("sumula_reader.imaging._find_document_corners", return_value=None),
+        ):
+            document = normalize_document(image, FECABA_V1)
+
+        self.assertTrue(document.used_perspective_warp)
+        self.assertEqual(document.method, "pillow_quad")
+        self.assertEqual(
+            document.image.shape[:2],
+            (FECABA_V1.canonical_height, FECABA_V1.canonical_width),
         )
 
 
