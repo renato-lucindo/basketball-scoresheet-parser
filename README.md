@@ -9,6 +9,8 @@ Basketball Scoresheet Parser extracts structured data from basketball scoresheet
 
 The project helps developers, analysts, and basketball organizations transform scoresheets into structured data.
 
+The project prioritizes correctness over raw automation: uncertain observations should remain reviewable instead of becoming silently accepted data. See [Project Goals](docs/project-goals.md) for the product direction, v1.0 quality gates, and scope boundaries.
+
 ## Features
 
 - Team and player extraction
@@ -55,10 +57,14 @@ python -m pytest -q
 
 ## Roadmap
 
-- Support more scoresheet formats
-- Improve recognition models
-- Expand evaluation datasets
-- Improve contributor tooling
+- Build a trusted real-data evaluation set
+- Complete the end-to-end FECABA parser
+- Meet the defined reliability and automation quality gates
+- Validate generalization to unseen documents and writers
+- Make human review efficient and reproducible
+- Release FECABA v1.0 before expanding to additional scoresheet formats
+
+Detailed milestones and scope boundaries are maintained in [Project Goals](docs/project-goals.md).
 
 ## Contributing
 
