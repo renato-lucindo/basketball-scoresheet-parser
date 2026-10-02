@@ -39,6 +39,10 @@ When work competes for time, prioritize it in this order:
 
 **Active milestone: M1 — Trusted evaluation data.**
 
+Operational procedure and evidence format: [M1 — Trusted Evaluation Data](m1-evaluation.md).
+
+Current evidence snapshot: [M1 Status](m1-status.md).
+
 Until M1 exit criteria are satisfied, the default work queue is limited to:
 
 - reviewing and correcting real FECABA ground truth;

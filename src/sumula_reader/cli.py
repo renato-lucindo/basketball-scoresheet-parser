@@ -116,6 +116,33 @@ def build_parser() -> argparse.ArgumentParser:
         help="Processa todos os gabaritos em vez de apenas o lote piloto",
     )
 
+    dataset_audit = sub.add_parser(
+        "dataset-audit",
+        help="Audits M1 ground truth, corpus fingerprint, and split isolation",
+    )
+    dataset_audit.add_argument(
+        "--dataset-root",
+        type=Path,
+        default=Path("datasets/fecaba"),
+    )
+    dataset_audit.add_argument("--output-dir", type=Path)
+
+    dataset_baseline = sub.add_parser(
+        "dataset-baseline",
+        help="Builds reproducible M1 baseline metrics from prediction JSONL",
+    )
+    dataset_baseline.add_argument("predictions", type=Path)
+    dataset_baseline.add_argument(
+        "--dataset-root",
+        type=Path,
+        default=Path("datasets/fecaba"),
+    )
+    dataset_baseline.add_argument("--output-dir", type=Path)
+    dataset_baseline.add_argument(
+        "--max-accepted-error-rate", type=float, default=0.01
+    )
+    dataset_baseline.add_argument("--min-automation-rate", type=float, default=0.10)
+
     review_prepare = sub.add_parser(
         "dataset-review-prepare",
         help="Prepara tarefas locais do Label Studio para revisao assistida",
@@ -263,6 +290,29 @@ def main() -> None:
             output_root=args.output,
             selected_only=not args.all_documents,
             dpi=args.dpi,
+        )
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return
+
+    if args.command == "dataset-audit":
+        from .m1_audit import audit_fecaba_dataset
+
+        result = audit_fecaba_dataset(
+            args.dataset_root,
+            output_dir=args.output_dir,
+        )
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return
+
+    if args.command == "dataset-baseline":
+        from .m1_audit import build_baseline_metrics
+
+        result = build_baseline_metrics(
+            args.dataset_root,
+            args.predictions,
+            output_dir=args.output_dir,
+            max_accepted_error_rate=args.max_accepted_error_rate,
+            min_automation_rate=args.min_automation_rate,
         )
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return

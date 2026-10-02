@@ -86,6 +86,11 @@ def _empty_ground_truth(record: IngestedDocument) -> dict[str, object]:
         "game_id": record.document_id,
         "source_file": record.source_path,
         "writer_name": None,
+        "review": {
+            "status": "pending",
+            "reviewed_at": None,
+            "method": "manual",
+        },
         "teams": {
             side: {
                 "roster": [],
