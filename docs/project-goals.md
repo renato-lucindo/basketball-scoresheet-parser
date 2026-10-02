@@ -10,6 +10,31 @@ Correctness comes before automation rate.
 
 Every extracted value that depends on uncertain visual or handwriting recognition should preserve enough evidence to explain the decision, expose confidence when applicable, and use an explicit status such as accepted, review, or unresolved.
 
+## North-star Metrics
+
+The primary quality metric is **accepted error rate**: among recognition decisions the system accepts automatically, at most 1% may be wrong on the defined held-out real evaluation set.
+
+The project must track these metrics together:
+
+- **accepted error rate** — primary safety/quality gate;
+- **automation rate** — share of decisions accepted without human review;
+- **global accuracy** — overall recognition correctness, including decisions sent to review;
+- **review rate** — share of decisions that require human review;
+- **coverage/completeness** — share of required core game fields represented in the structured result.
+
+Automation rate is a secondary optimization metric. It may improve only while the accepted-error gate remains satisfied. No arbitrary automation target is set before M1 establishes a trustworthy real-data baseline.
+
+## Priority Order
+
+When work competes for time, prioritize it in this order:
+
+1. data integrity and prevention of silently wrong accepted results;
+2. completeness of the FECABA end-to-end parser;
+3. reproducible evaluation and evidence of quality;
+4. reduction of unnecessary human review;
+5. contributor experience and maintainability;
+6. new formats and adjacent product features after FECABA v1.0.
+
 ## Goals Through v1.0
 
 1. Make the FECABA pipeline work end to end from a supported image or PDF to a structured `DocumentResult`/JSON result.
@@ -42,25 +67,69 @@ The evaluation set, its version, and the exact metrics used for a release must b
 
 Establish reviewed ground truth and a stable real-data evaluation set with document-level isolation and writer-level isolation when possible.
 
+**Exit criteria:**
+
+- the evaluation corpus has reviewed ground truth rather than inferred labels;
+- the corpus and split definition are versioned or reproducibly identified;
+- no document appears in both training and evaluation;
+- writer isolation is enforced whenever writer identity is available;
+- a repeatable command or documented procedure produces baseline quality metrics from the evaluation set.
+
 ### M2 — Complete FECABA parser
 
 Finish the end-to-end FECABA path and cover the full core game record in the structured output.
+
+**Exit criteria:**
+
+- a supported FECABA image or PDF can be processed through the public CLI/API without undocumented manual intervention;
+- teams, players, participation, starters, period scoring, scoring events, individual fouls, team fouls, and final scores are represented or explicitly marked unavailable/unresolved;
+- contradictions and uncertain fields propagate review/unresolved state instead of being silently normalized into accepted values;
+- automated integration coverage exercises the end-to-end result structure on representative fixtures.
 
 ### M3 — Measured reliability
 
 Measure each recognition component and the end-to-end parser. Calibrate acceptance thresholds against the v1.0 quality gates.
 
+**Exit criteria:**
+
+- component and end-to-end metrics are generated from the M1 evaluation set;
+- acceptance thresholds are derived from evaluation evidence rather than chosen only by intuition;
+- automatically accepted recognition decisions meet the <=1% accepted-error gate;
+- automation rate, global accuracy, accepted error rate, and review rate are reported together so quality cannot be hidden behind a single metric.
+
 ### M4 — Real-world generalization
 
 Validate scans/photos and previously unseen writers, then fix failure modes that occur outside the development samples.
+
+**Exit criteria:**
+
+- evaluation includes supported real-world capture conditions rather than only development crops;
+- unseen-writer results are reported separately whenever writer identity is available;
+- known failure modes discovered during evaluation are documented and either fixed or explicitly routed to review;
+- the M3 accepted-error gate continues to hold on the defined generalization evaluation slice.
 
 ### M5 — Efficient human review
 
 Minimize unnecessary review while keeping the accepted-error gate intact, and make reviewed corrections reusable in the dataset workflow.
 
+**Exit criteria:**
+
+- review-required decisions can move through a documented review workflow and return as reusable reviewed data;
+- review rate and automation rate are measured release over release;
+- threshold or model improvements that reduce review do not violate the accepted-error gate;
+- stale, contradictory, or invalid reviewed data is detected rather than silently reused.
+
 ### M6 — FECABA v1.0
 
 Release a reproducible, documented, tested FECABA parser with versioned evaluation evidence and a stable public output contract.
+
+**Exit criteria:**
+
+- all v1.0 quality gates and M1-M5 exit criteria are satisfied;
+- a clean checkout can install the documented dependencies and pass CI;
+- the public structured output/schema and supported input expectations are documented;
+- the release records the evaluation-set version/identity and measured quality metrics;
+- the release is tagged/versioned and can be reproduced by an external contributor from public documentation.
 
 ### After v1.0 — Format expansion
 
