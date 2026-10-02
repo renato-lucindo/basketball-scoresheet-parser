@@ -3,6 +3,8 @@ from .models import (
     DocumentResult,
     FoulEvent,
     FoulKind,
+    FoulTerminal,
+    FoulTerminalKind,
     ParticipantMark,
     PeriodResult,
     PeriodType,
@@ -41,12 +43,21 @@ from .recognition import (
     constrain_candidates,
 )
 from .reconcile import reconcile_document, reconcile_team
+from .evaluation import (
+    PredictionRecord,
+    ThresholdMetrics,
+    choose_acceptance_threshold,
+    compare_known_unknown_writers,
+    evaluate_threshold,
+)
 
 __all__ = [
     "DecisionStatus",
     "DocumentResult",
     "FoulEvent",
     "FoulKind",
+    "FoulTerminal",
+    "FoulTerminalKind",
     "ParticipantMark",
     "PeriodResult",
     "PeriodType",
@@ -83,6 +94,11 @@ __all__ = [
     "constrain_candidates",
     "reconcile_document",
     "reconcile_team",
+    "PredictionRecord",
+    "ThresholdMetrics",
+    "choose_acceptance_threshold",
+    "compare_known_unknown_writers",
+    "evaluate_threshold",
 ]
 
 __version__ = "0.1.0"

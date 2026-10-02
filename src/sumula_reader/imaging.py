@@ -40,7 +40,7 @@ def load_document(path: str | Path, *, dpi: int = 250) -> np.ndarray:
 
 def _render_pdf(path: Path, *, dpi: int) -> np.ndarray:
     try:
-        import fitz  # type: ignore
+        import pymupdf  # type: ignore
     except ImportError as exc:
         pdftoppm = shutil.which("pdftoppm")
         if pdftoppm is None:
@@ -77,11 +77,14 @@ def _render_pdf(path: Path, *, dpi: int) -> np.ndarray:
                 return np.asarray(image.convert("RGB"))
 
     scale = dpi / 72.0
-    with fitz.open(path) as document:
+    with pymupdf.open(path) as document:
         if document.page_count < 1:
             raise ValueError("O PDF nao possui paginas")
         page = document.load_page(0)
-        pix = page.get_pixmap(matrix=fitz.Matrix(scale, scale), alpha=False)
+        pix = page.get_pixmap(
+            matrix=pymupdf.Matrix(scale, scale),
+            alpha=False,
+        )
         array = np.frombuffer(pix.samples, dtype=np.uint8)
         return array.reshape(pix.height, pix.width, pix.n)[..., :3].copy()
 
@@ -123,6 +126,20 @@ def normalize_document(
 
     corners = _find_document_corners(rgb, cv2)
     if corners is None:
+        corners = _find_document_corners_numpy(rgb)
+        if corners is not None:
+            warped = _warp_with_pillow(
+                rgb,
+                corners,
+                template.canonical_width,
+                template.canonical_height,
+            )
+            return NormalizedDocument(
+                image=warped,
+                corners=corners,
+                used_perspective_warp=True,
+                method="pillow_quad",
+            )
         if strict:
             raise ValueError("Nao foi possivel localizar a borda da sumula")
         resized = cv2.resize(

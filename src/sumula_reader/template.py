@@ -57,7 +57,7 @@ FECABA_V1 = TemplateSpec(
         "team_b_jersey": NormalizedRect(0.320, 0.561, 0.042, 0.222),
         "team_b_participation": NormalizedRect(0.362, 0.561, 0.022, 0.222),
         "team_b_player_fouls": NormalizedRect(0.384, 0.561, 0.108, 0.222),
-        "team_b_team_fouls": NormalizedRect(0.276, 0.515, 0.216, 0.045),
+        "team_b_team_fouls": NormalizedRect(0.276, 0.466, 0.216, 0.045),
         "scoring_table": NormalizedRect(0.511, 0.151, 0.489, 0.645),
         "period_scores": NormalizedRect(0.000, 0.783, 0.492, 0.060),
         "final_score": NormalizedRect(0.511, 0.783, 0.489, 0.060),

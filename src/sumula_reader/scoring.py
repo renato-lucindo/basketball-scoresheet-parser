@@ -6,6 +6,7 @@ from typing import Protocol
 
 import numpy as np
 
+from .decision import DecisionEngine
 from .imaging import crop_region
 from .models import DecisionStatus, ScoringEvent, ShotType
 from .template import FECABA_V1, NormalizedRect, TemplateSpec
@@ -29,6 +30,7 @@ class ScoringGridSpec:
     panels: int = 4
     rows_per_panel: int = 40
     header_fraction: float = 0.047
+    rows_bottom_fraction: float = 0.946
     jersey_a_end: float = 0.265
     score_a_end: float = 0.505
     score_b_end: float = 0.745
@@ -48,6 +50,17 @@ class CircleObservation:
     detected: bool
     confidence: float
     angular_coverage: float
+
+
+@dataclass(slots=True)
+class ScoringGridDetection:
+    x_lines: tuple[int, ...]
+    y_lines: tuple[int, ...]
+    confidence: float
+
+    @property
+    def valid(self) -> bool:
+        return len(self.x_lines) == 17 and len(self.y_lines) == 41
 
 
 class JerseyRecognizer(Protocol):
@@ -100,6 +113,14 @@ def classify_score_mark(
     *,
     min_ink_ratio: float = 0.004,
 ) -> ScoreMarkObservation:
+    if image.size == 0 or image.shape[0] == 0 or image.shape[1] == 0:
+        return ScoreMarkObservation(
+            kind=ScoreMarkKind.EMPTY,
+            ink_color=InkColor.UNKNOWN,
+            confidence=1.0,
+            ink_ratio=0.0,
+            elongation=1.0,
+        )
     red_mask, blue_mask = colored_ink_masks(image)
     mask = red_mask | blue_mask
     ink_ratio = float(mask.mean())
@@ -212,6 +233,54 @@ def detect_jersey_circle(
     )
 
 
+def detect_scoring_grid(
+    image: np.ndarray,
+    *,
+    grid: ScoringGridSpec = DEFAULT_GRID,
+) -> ScoringGridDetection:
+    """Localiza a grade impressa da contagem de pontos.
+
+    A folha real pode sofrer pequenas distorcoes mesmo depois da homografia.
+    Por isso as celulas de pontuacao sao ancoradas nas linhas pretas do
+    formulario, em vez de depender apenas de fracoes fixas do crop.
+    """
+    rgb = _ensure_rgb(image)
+    gray = (
+        0.299 * rgb[..., 0].astype(np.float32)
+        + 0.587 * rgb[..., 1].astype(np.float32)
+        + 0.114 * rgb[..., 2].astype(np.float32)
+    )
+    dark = gray < 145
+    height, width = dark.shape
+
+    x_lines = _detect_vertical_lines(dark, expected=grid.panels * 4 + 1)
+    if len(x_lines) != grid.panels * 4 + 1:
+        return ScoringGridDetection(tuple(), tuple(), 0.0)
+
+    y_candidates = _horizontal_line_candidates(dark, x_lines)
+    y_lines = _fit_row_lattice(
+        y_candidates,
+        height=height,
+        rows=grid.rows_per_panel,
+        expected_header_fraction=grid.header_fraction,
+        expected_bottom_fraction=grid.rows_bottom_fraction,
+    )
+    if len(y_lines) != grid.rows_per_panel + 1:
+        return ScoringGridDetection(tuple(x_lines), tuple(), 0.0)
+
+    x_span = x_lines[-1] - x_lines[0]
+    y_span = y_lines[-1] - y_lines[0]
+    coverage = min(
+        1.0,
+        (x_span / max(width, 1) + y_span / max(height, 1)) / 1.85,
+    )
+    return ScoringGridDetection(
+        x_lines=tuple(x_lines),
+        y_lines=tuple(y_lines),
+        confidence=round(float(coverage), 4),
+    )
+
+
 def iter_scoring_cells(
     grid: ScoringGridSpec = DEFAULT_GRID,
 ) -> tuple[ScoringCell, ...]:
@@ -261,17 +330,31 @@ def extract_scoring_events(
     template: TemplateSpec = FECABA_V1,
     recognizer: JerseyRecognizer | None = None,
     grid: ScoringGridSpec = DEFAULT_GRID,
+    decision_engine: DecisionEngine | None = None,
+    decision_threshold: float = 0.85,
 ) -> list[ScoringEvent]:
     table = crop_region(normalized_image, template.region("scoring_table"))
-    events: list[ScoringEvent] = []
+    detected_grid = detect_scoring_grid(table, grid=grid)
+    observations: list[ScoringEvent] = []
 
-    for cell in iter_scoring_cells(grid):
-        score_crop = crop_region(table, cell.score_rect)
+    for cell, score_crop, jersey_crop, grid_aligned in _iter_scoring_crops(
+        table,
+        detected_grid,
+        grid,
+    ):
         mark = classify_score_mark(score_crop)
-        if mark.kind is ScoreMarkKind.EMPTY:
+        jersey_red, jersey_blue = colored_ink_masks(jersey_crop)
+        jersey_ink = float((jersey_red | jersey_blue).mean())
+        if grid_aligned:
+            if jersey_ink < 0.025 or _looks_like_closure_stroke(jersey_crop):
+                continue
+        elif mark.kind is ScoreMarkKind.EMPTY:
             continue
 
-        jersey_crop = crop_region(table, cell.jersey_rect)
+        ink_color = mark.ink_color
+        if grid_aligned and ink_color is InkColor.UNKNOWN:
+            ink_color = _dominant_color(jersey_red, jersey_blue)
+
         circle = detect_jersey_circle(jersey_crop)
         jersey: int | None = None
         jersey_confidence: float | None = None
@@ -282,6 +365,7 @@ def extract_scoring_events(
             )
 
         status = DecisionStatus.ACCEPTED
+        decision_confidence: float | None = None
         if mark.kind is ScoreMarkKind.FREE_THROW:
             shot_type = ShotType.FREE_THROW
             points = 1
@@ -296,11 +380,51 @@ def extract_scoring_events(
             points = 0
             status = DecisionStatus.REVIEW
 
-        confidence = mark.confidence
+        if (
+            shot_type is ShotType.AMBIGUOUS
+            and decision_engine is not None
+        ):
+            try:
+                answer = decision_engine.classify_scoring_mark(
+                    team=cell.team,
+                    running_score=cell.running_score,
+                    evidence={
+                        "local_kind": mark.kind.value,
+                        "local_confidence": mark.confidence,
+                        "ink_color": ink_color.value,
+                        "ink_ratio": mark.ink_ratio,
+                        "elongation": mark.elongation,
+                        "jersey_ink_ratio": round(jersey_ink, 6),
+                        "circle_detected": circle.detected,
+                        "circle_confidence": circle.confidence,
+                        "grid_aligned": grid_aligned,
+                    },
+                )
+            except RuntimeError:
+                answer = None
+
+            if answer is not None and answer.confidence >= decision_threshold:
+                resolved = {
+                    "free_throw": (ShotType.FREE_THROW, 1),
+                    "two_point": (ShotType.TWO_POINT, 2),
+                    "three_point": (ShotType.THREE_POINT, 3),
+                }.get(answer.choice)
+                if answer.choice == "closure_stroke":
+                    continue
+                if resolved is not None:
+                    shot_type, points = resolved
+                    status = DecisionStatus.ACCEPTED
+                    decision_confidence = float(answer.confidence)
+
+        confidence = (
+            decision_confidence
+            if decision_confidence is not None
+            else mark.confidence
+        )
         if shot_type is ShotType.THREE_POINT:
             confidence = min(confidence, circle.confidence)
 
-        events.append(
+        observations.append(
             ScoringEvent(
                 team=cell.team,
                 period=None,
@@ -308,15 +432,38 @@ def extract_scoring_events(
                 jersey=jersey,
                 shot_type=shot_type,
                 points=points,
-                ink_color=mark.ink_color.value,
+                ink_color=ink_color.value,
                 confidence=round(float(confidence), 4),
                 jersey_confidence=jersey_confidence,
                 status=status,
             )
         )
 
+    events = select_plausible_scoring_sequences(observations)
     assign_periods_from_color_runs(events)
     return events
+
+
+def select_plausible_scoring_sequences(
+    events: list[ScoringEvent],
+) -> list[ScoringEvent]:
+    """Usa a progressao 1..160 como validacao, sem reclassificar a marca."""
+    selected: list[ScoringEvent] = []
+    for team in ("A", "B"):
+        candidates = sorted(
+            (event for event in events if event.team == team),
+            key=lambda event: event.running_score,
+        )
+        previous_score = 0
+        for event in candidates:
+            delta = event.running_score - previous_score
+            if delta not in {1, 2, 3} or (event.points > 0 and event.points != delta):
+                event.status = DecisionStatus.REVIEW
+                event.confidence = min(event.confidence or 0.0, 0.69)
+            previous_score = max(previous_score, event.running_score)
+            selected.append(event)
+
+    return sorted(selected, key=lambda event: (event.team, event.running_score))
 
 
 def assign_periods_from_color_runs(events: list[ScoringEvent]) -> None:
@@ -340,8 +487,17 @@ def assign_periods_from_color_runs(events: list[ScoringEvent]) -> None:
                 event.status = DecisionStatus.REVIEW
                 continue
 
-            if previous_color is None or color != previous_color:
-                period += 1
+            if previous_color is None:
+                period = 1 if color == InkColor.RED.value else 2
+                previous_color = color
+            elif color != previous_color:
+                possible = (1, 3) if color == InkColor.RED.value else (2, 4)
+                later = [candidate for candidate in possible if candidate > period]
+                if not later:
+                    event.period = None
+                    event.status = DecisionStatus.REVIEW
+                    continue
+                period = later[0]
                 previous_color = color
 
             if period > 4:
@@ -362,6 +518,316 @@ def _dominant_color(red_mask: np.ndarray, blue_mask: np.ndarray) -> InkColor:
     if blue_count / total >= 0.62:
         return InkColor.BLUE
     return InkColor.UNKNOWN
+
+
+def _colored_ink_ratio(image: np.ndarray) -> float:
+    red_mask, blue_mask = colored_ink_masks(image)
+    return float((red_mask | blue_mask).mean())
+
+
+def _looks_like_closure_stroke(image: np.ndarray) -> bool:
+    red_mask, blue_mask = colored_ink_masks(image)
+    mask = red_mask | blue_mask
+    yy, xx = np.nonzero(mask)
+    if len(xx) < 4:
+        return False
+    points = np.column_stack((xx, yy)).astype(np.float64)
+    centered = points - points.mean(axis=0, keepdims=True)
+    covariance = centered.T @ centered / max(len(points) - 1, 1)
+    eigenvalues = np.linalg.eigvalsh(covariance)
+    elongation = float(np.sqrt(max(eigenvalues[-1], 1e-6) / max(eigenvalues[0], 1e-6)))
+    height, width = mask.shape
+    width_span = (xx.max() - xx.min() + 1) / max(width, 1)
+    height_span = (yy.max() - yy.min() + 1) / max(height, 1)
+    ink_ratio = float(mask.mean())
+    return elongation > 3.0 or (
+        elongation > 2.0
+        and width_span > 0.84
+        and height_span < 0.86
+        and ink_ratio < 0.16
+    )
+
+
+def _iter_scoring_crops(
+    table: np.ndarray,
+    detected_grid: ScoringGridDetection,
+    grid: ScoringGridSpec,
+):
+    if detected_grid.valid:
+        x_lines = detected_grid.x_lines
+        y_lines = detected_grid.y_lines
+        for panel in range(grid.panels):
+            x = x_lines[panel * 4 : panel * 4 + 5]
+            for row in range(grid.rows_per_panel):
+                running_score = panel * grid.rows_per_panel + row + 1
+                y0, y1 = y_lines[row], y_lines[row + 1]
+                margin_y = max(1, round((y1 - y0) * 0.10))
+                for team, score_index, jersey_index in (
+                    ("A", 1, 0),
+                    ("B", 2, 3),
+                ):
+                    sx0, sx1 = x[score_index], x[score_index + 1]
+                    jx0, jx1 = x[jersey_index], x[jersey_index + 1]
+                    score_margin = max(1, round((sx1 - sx0) * 0.08))
+                    jersey_margin = max(1, round((jx1 - jx0) * 0.05))
+                    score_crop = table[
+                        y0 + margin_y : y1 - margin_y,
+                        sx0 + score_margin : sx1 - score_margin,
+                    ]
+                    jersey_crop = table[
+                        y0 + margin_y : y1 - margin_y,
+                        jx0 + jersey_margin : jx1 - jersey_margin,
+                    ]
+                    yield (
+                        ScoringCell(
+                            team,
+                            running_score,
+                            NormalizedRect(0, 0, 0, 0),
+                            NormalizedRect(0, 0, 0, 0),
+                        ),
+                        score_crop,
+                        jersey_crop,
+                        True,
+                    )
+        return
+
+    for cell in iter_scoring_cells(grid):
+        yield (
+            cell,
+            crop_region(table, cell.score_rect),
+            crop_region(table, cell.jersey_rect),
+            False,
+        )
+
+
+def _detect_vertical_lines(dark: np.ndarray, *, expected: int) -> list[int]:
+    ratio = dark.mean(axis=0)
+    width = len(ratio)
+    if expected < 2 or width < expected:
+        return []
+
+    best: tuple[tuple[int, float, float], list[int]] | None = None
+    merge_distance = max(4, round(width * 0.015))
+    for threshold in (0.65, 0.60, 0.55, 0.50, 0.45, 0.40, 0.35, 0.30):
+        groups = _contiguous_groups(np.flatnonzero(ratio >= threshold))
+        centers = [round((start + end) / 2) for start, end in groups]
+        centers = _merge_vertical_candidates(
+            centers,
+            ratio,
+            max_distance=merge_distance,
+        )
+        fitted, inferred = _complete_vertical_lattice(
+            centers,
+            width=width,
+            expected=expected,
+        )
+        if len(fitted) != expected or inferred > 2:
+            continue
+
+        # Prefere grades apoiadas no maior numero de linhas realmente vistas.
+        # Em empate, privilegia perfis mais escuros e limiares mais altos.
+        anchor_strength = float(
+            np.mean([ratio[min(max(center, 0), width - 1)] for center in centers])
+        )
+        rank = (inferred, -anchor_strength, -threshold)
+        if best is None or rank < best[0]:
+            best = (rank, fitted)
+
+    return best[1] if best is not None else []
+
+
+def _merge_vertical_candidates(
+    centers: list[int],
+    ratio: np.ndarray,
+    *,
+    max_distance: int,
+) -> list[int]:
+    if not centers:
+        return []
+    clusters: list[list[int]] = [[centers[0]]]
+    for center in centers[1:]:
+        if center - clusters[-1][-1] <= max_distance:
+            clusters[-1].append(center)
+        else:
+            clusters.append([center])
+
+    merged: list[int] = []
+    for cluster in clusters:
+        weights = [max(float(ratio[center]), 1e-6) for center in cluster]
+        merged.append(round(float(np.average(cluster, weights=weights))))
+    return merged
+
+
+def _complete_vertical_lattice(
+    centers: list[int],
+    *,
+    width: int,
+    expected: int,
+) -> tuple[list[int], int]:
+    """Completa no maximo duas linhas fracas usando a malha observada.
+
+    As linhas verticais impressas sao muito persistentes, mas bordas podem
+    desaparecer no recorte e uma divisoria pode ficar fraca por rasura. A
+    reconstrucao so acontece quando as demais linhas fornecem ancoras reais e
+    o espacamento resultante continua compativel com a grade.
+    """
+    if len(centers) < expected - 2 or len(centers) > expected or len(centers) < 2:
+        return [], 0
+
+    max_gap = width * 0.09
+    completed: list[int] = [centers[0]]
+    inferred = 0
+    for right in centers[1:]:
+        left = completed[-1]
+        gap = right - left
+        intervals = max(1, int(np.ceil(gap / max_gap)))
+        missing = intervals - 1
+        if inferred + missing > 2:
+            return [], 0
+        for step in range(1, intervals):
+            completed.append(round(left + gap * step / intervals))
+            inferred += 1
+        completed.append(right)
+
+    if len(completed) > expected:
+        return [], 0
+
+    missing_edges = expected - len(completed)
+    if missing_edges:
+        gaps = np.diff(completed)
+        typical = float(np.median(gaps)) if len(gaps) else width / (expected - 1)
+        typical = max(typical, 1.0)
+        left_gap = float(completed[0])
+        right_gap = float((width - 1) - completed[-1])
+
+        best_edge_fit: tuple[float, int, int] | None = None
+        for left_count in range(missing_edges + 1):
+            right_count = missing_edges - left_count
+            cost = 0.0
+            if left_count:
+                cost += abs(left_gap / left_count - typical) / typical
+            else:
+                cost += max(0.0, left_gap / typical - 0.45)
+            if right_count:
+                cost += abs(right_gap / right_count - typical) / typical
+            else:
+                cost += max(0.0, right_gap / typical - 0.45)
+            candidate = (cost, left_count, right_count)
+            if best_edge_fit is None or candidate < best_edge_fit:
+                best_edge_fit = candidate
+
+        assert best_edge_fit is not None
+        _, left_count, right_count = best_edge_fit
+        left_values = [
+            round(completed[0] * step / left_count)
+            for step in range(left_count)
+        ] if left_count else []
+        right_values = [
+            round(
+                completed[-1]
+                + ((width - 1) - completed[-1]) * step / right_count
+            )
+            for step in range(1, right_count + 1)
+        ] if right_count else []
+        completed = left_values + completed + right_values
+        inferred += missing_edges
+
+    if len(completed) != expected:
+        return [], 0
+    if any(second <= first for first, second in zip(completed, completed[1:])):
+        return [], 0
+    return completed, inferred
+
+
+def _horizontal_line_candidates(
+    dark: np.ndarray,
+    x_lines: list[int],
+) -> list[int]:
+    raw: list[int] = []
+    for left, right in zip(x_lines[:-1], x_lines[1:]):
+        margin = max(2, round((right - left) * 0.07))
+        if right - left <= margin * 2:
+            continue
+        profile = dark[:, left + margin : right - margin].mean(axis=1)
+        for y in range(2, len(profile) - 2):
+            window = profile[y - 2 : y + 3]
+            if profile[y] >= 0.50 and profile[y] >= float(window.max()):
+                raw.append(y)
+
+    if not raw:
+        return []
+    raw.sort()
+    clusters: list[list[int]] = []
+    for y in raw:
+        if not clusters or y - clusters[-1][-1] > 4:
+            clusters.append([y])
+        else:
+            clusters[-1].append(y)
+    return [round(float(np.median(cluster))) for cluster in clusters]
+
+
+def _fit_row_lattice(
+    candidates: list[int],
+    *,
+    height: int,
+    rows: int,
+    expected_header_fraction: float,
+    expected_bottom_fraction: float,
+) -> list[int]:
+    if len(candidates) < rows + 1:
+        return []
+
+    expected_start = height * expected_header_fraction
+    expected_end = height * expected_bottom_fraction
+    starts = [
+        candidate
+        for candidate in candidates
+        if abs(candidate - expected_start) <= height * 0.035
+    ]
+    ends = [
+        candidate
+        for candidate in candidates
+        if abs(candidate - expected_end) <= height * 0.035
+    ]
+    if not starts or not ends:
+        return []
+    # No template FECABA, header_fraction aponta para a linha que separa o
+    # cabecalho A/B da linha do placar 1. O titulo e outras linhas proximas
+    # pertencem ao mesmo reticulado, portanto escolher o inicio apenas pelo
+    # maior numero de matches pode deslocar toda a leitura em uma linha.
+    start = min(starts, key=lambda value: abs(value - expected_start))
+    end = min(ends, key=lambda value: abs(value - expected_end))
+    if end <= start:
+        return []
+    step = (end - start) / rows
+    best_lines: list[int] = []
+    for index in range(rows + 1):
+        predicted = start + index * step
+        nearest = min(candidates, key=lambda value: abs(value - predicted))
+        if abs(nearest - predicted) <= 5.5:
+            best_lines.append(nearest)
+        else:
+            best_lines.append(round(predicted))
+    # Evita duplicatas quando duas previsoes caem sobre o mesmo pico.
+    for first, second in zip(best_lines, best_lines[1:]):
+        if second <= first:
+            return []
+    return best_lines
+
+
+def _contiguous_groups(values: np.ndarray) -> list[tuple[int, int]]:
+    if len(values) == 0:
+        return []
+    groups: list[tuple[int, int]] = []
+    start = previous = int(values[0])
+    for value in values[1:]:
+        current = int(value)
+        if current > previous + 1:
+            groups.append((start, previous))
+            start = current
+        previous = current
+    groups.append((start, previous))
+    return groups
 
 
 def _ensure_rgb(image: np.ndarray) -> np.ndarray:

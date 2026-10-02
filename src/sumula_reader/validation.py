@@ -29,6 +29,12 @@ def validate_team(team: TeamResult) -> TeamResult:
             f"Placar calculado ({team.calculated_score}) difere do placar escrito ({team.written_final_score})"
         )
 
+    for period in team.periods:
+        if period.written_score is not None and period.score != period.written_score:
+            warnings.append(
+                f"Q{period.number}: parcial calculada ({period.score}) difere da parcial escrita ({period.written_score})"
+            )
+
     team.warnings = warnings
     team.status = DecisionStatus.REVIEW if warnings else DecisionStatus.ACCEPTED
     return team
