@@ -1,6 +1,6 @@
 # M1 Status
 
-Status snapshot: 2026-10-02.
+Status snapshot: 2026-10-03.
 
 M1 — Trusted Evaluation Data is **in progress**.
 
@@ -8,8 +8,10 @@ The first reproducible local corpus audit found:
 
 - 51 catalogued FECABA documents;
 - 5 pilot ground-truth files;
-- 0 ground-truth files that currently satisfy the reviewed-and-complete contract;
-- 0 known writers recorded in ground truth;
+- 5 pilot ground-truth files with rosters, period totals, final score, and writer identity visually transcribed;
+- 1 pilot (the test document) with scoring events visually transcribed and period totals reconciled;
+- all 5 pilots remain in `partial` review state while individual foul cells and the remaining scoring events are verified;
+- 4 anonymized writer groups recorded in the audit manifest;
 - deterministic pilot split: 2 train, 2 validation, 1 test;
 - no document/writer split leakage detected;
 - corpus identity/fingerprinting operational;
@@ -17,7 +19,7 @@ The first reproducible local corpus audit found:
 
 ## Current blocker
 
-The next required work is human verification of the pilot ground truth against the source scoresheets. This must not be replaced by parser predictions, because M1 exists to create independent evidence for later model evaluation.
+The next required work is cell-by-cell verification of individual fouls for the test pilot, followed by scoring and foul verification for the remaining four pilots. This must not be replaced by parser predictions, because M1 exists to create independent evidence for later model evaluation.
 
 After review metadata and complete labels exist, rerun:
 

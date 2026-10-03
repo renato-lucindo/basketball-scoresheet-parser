@@ -23,12 +23,14 @@ def _ground_truth(
     *,
     reviewed: bool,
     writer_name: str | None = "Writer A",
+    evaluation_split: str | None = None,
 ) -> dict:
-    periods = {f"Q{period}": 10 for period in range(1, 5)}
+    periods = {f"Q{period}": 0 for period in range(1, 5)}
     return {
         "game_id": document_id,
         "source_file": source_path,
         "writer_name": writer_name,
+        "evaluation_split": evaluation_split,
         "review": {
             "status": "reviewed" if reviewed else "pending",
             "reviewed_at": "2026-10-02" if reviewed else None,
@@ -40,7 +42,7 @@ def _ground_truth(
         },
         "scoring": [],
         "period_scores": {"A": periods, "B": periods},
-        "final_score": {"A": 40, "B": 40},
+        "final_score": {"A": 0, "B": 0},
         "warnings": [],
     }
 
@@ -53,6 +55,7 @@ class M1AuditTests(unittest.TestCase):
         reviewed: bool,
         document_id: str = "game-001",
         writer_name: str | None = "Writer A",
+        evaluation_split: str | None = None,
     ) -> str:
         source_path = "source/u15/game-001.pdf"
         _write_jsonl(
@@ -75,6 +78,7 @@ class M1AuditTests(unittest.TestCase):
                     source_path,
                     reviewed=reviewed,
                     writer_name=writer_name,
+                    evaluation_split=evaluation_split,
                 )
             ),
             encoding="utf-8",
@@ -90,6 +94,7 @@ class M1AuditTests(unittest.TestCase):
 
             self.assertEqual(report["ground_truth_documents"], 1)
             self.assertEqual(report["reviewed_ground_truth_documents"], 0)
+            self.assertEqual(report["review_status_counts"], {"pending": 1})
             self.assertFalse(report["exit_criteria"]["reviewed_ground_truth"])
             self.assertEqual(report["status"], "in_progress")
             self.assertTrue((root / "evaluation" / "evaluation-manifest.jsonl").exists())
@@ -104,6 +109,7 @@ class M1AuditTests(unittest.TestCase):
 
             self.assertEqual(first["corpus_sha256"], second["corpus_sha256"])
             self.assertEqual(first["known_writers"], 1)
+            self.assertEqual(first["review_status_counts"], {"reviewed": 1})
             self.assertTrue(first["exit_criteria"]["document_and_writer_isolation"])
 
     def test_reviewed_status_requires_review_metadata(self):
@@ -125,6 +131,27 @@ class M1AuditTests(unittest.TestCase):
                 .splitlines()
             ]
             self.assertIn("reviewed_at_missing", manifest[0]["issues"])
+
+    def test_explicit_split_stays_stable_when_writer_becomes_known(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self._dataset(
+                root,
+                reviewed=True,
+                writer_name="Writer A",
+                evaluation_split="test",
+            )
+
+            report = audit_fecaba_dataset(root)
+            manifest = [
+                json.loads(line)
+                for line in (root / "evaluation" / "evaluation-manifest.jsonl")
+                .read_text(encoding="utf-8")
+                .splitlines()
+            ]
+
+            self.assertEqual(report["split_counts"]["test"], 1)
+            self.assertEqual(manifest[0]["split_source"], "explicit")
 
     def test_baseline_is_bound_to_reviewed_test_corpus(self):
         with tempfile.TemporaryDirectory() as temporary:

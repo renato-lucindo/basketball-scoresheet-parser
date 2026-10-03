@@ -16,6 +16,14 @@ Ground-truth JSON files live under the local `datasets/fecaba/ground_truth/` dir
 }
 ```
 
+The evaluation split is frozen in the same file after the writer identity is reviewed:
+
+```json
+{"evaluation_split":"test"}
+```
+
+Valid values are `train`, `validation`, and `test`. Before this value is frozen, the tooling may derive a provisional split. A release-quality corpus must use explicit splits so adding a previously unknown writer cannot silently move a document between partitions.
+
 `reviewed` and `verified` are accepted final states. Generated templates start as `pending`. Removing a pending warning without adding explicit review metadata does not make a document reviewed.
 
 The reviewer must verify the source scoresheet itself. Parser predictions must not be copied into ground truth without visual verification.
@@ -37,7 +45,7 @@ The corpus SHA-256 changes when the evaluated ground truth or its review state c
 
 ## Split policy
 
-Splits are deterministic. A known writer is the grouping unit, so all documents attributed to the same writer stay in one split. If writer identity is unavailable, the document is the grouping unit. `dataset-audit` validates that neither a document nor a known writer leaks across splits.
+Explicit ground-truth splits are authoritative and stable. A known writer is the grouping unit, so every document attributed to that writer must use the same explicit split. If an explicit split is not yet available, the audit derives a provisional deterministic split from the writer or document. `dataset-audit` validates that neither a document nor a known writer leaks across splits.
 
 ## Produce baseline metrics
 

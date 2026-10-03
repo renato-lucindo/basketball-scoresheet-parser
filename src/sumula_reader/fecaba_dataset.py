@@ -86,6 +86,7 @@ def _empty_ground_truth(record: IngestedDocument) -> dict[str, object]:
         "game_id": record.document_id,
         "source_file": record.source_path,
         "writer_name": None,
+        "evaluation_split": None,
         "review": {
             "status": "pending",
             "reviewed_at": None,
@@ -257,6 +258,11 @@ def _load_ground_truth(path: Path) -> dict[str, object]:
     scoring = payload.get("scoring")
     if not isinstance(scoring, list):
         raise ValueError(f"Campo scoring deve ser uma lista: {path}")
+    evaluation_split = payload.get("evaluation_split")
+    if evaluation_split not in {None, "train", "validation", "test"}:
+        raise ValueError(
+            f"evaluation_split deve ser train, validation, test ou null: {path}"
+        )
 
     for side in ("A", "B"):
         team = teams[side]
@@ -488,7 +494,10 @@ def build_fecaba_crops(
         writer_id = _anonymous_writer_id(ground_truth.get("writer_name"))
         source = root / document["source_path"]
         normalized = normalize_document(load_document(source, dpi=dpi), FECABA_V1)
-        split = assign_document_split(document_id, writer_id=writer_id)
+        split = ground_truth.get("evaluation_split") or assign_document_split(
+            document_id,
+            writer_id=writer_id,
+        )
         scoring_labels = _scoring_labels(ground_truth)
 
         scoring_region = reviewed_region(geometry_overrides, document_id, "scoring_table")

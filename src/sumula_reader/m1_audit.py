@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+from collections import Counter
 import hashlib
 import json
 from pathlib import Path
@@ -101,6 +102,12 @@ def _ground_truth_issues(
         roster = team.get("roster")
         if not isinstance(roster, list) or not roster:
             issues.append(f"team_{side}_roster_missing")
+        team_fouls = team.get("team_fouls")
+        if not isinstance(team_fouls, dict) or any(
+            not isinstance(team_fouls.get(f"Q{period}"), int)
+            for period in range(1, 5)
+        ):
+            issues.append(f"team_{side}_team_fouls_incomplete")
 
     period_scores = payload.get("period_scores")
     for side in ("A", "B"):
@@ -119,6 +126,45 @@ def _ground_truth_issues(
     scoring = payload.get("scoring")
     if not isinstance(scoring, list):
         issues.append("scoring_missing")
+        scoring = []
+
+    if isinstance(final_score, dict) and any(
+        isinstance(final_score.get(side), int) and final_score[side] > 0
+        for side in ("A", "B")
+    ) and not scoring:
+        issues.append("scoring_empty")
+
+    if isinstance(period_scores, dict) and isinstance(final_score, dict):
+        for side in ("A", "B"):
+            side_scores = period_scores.get(side)
+            final = final_score.get(side)
+            if isinstance(side_scores, dict) and all(
+                isinstance(side_scores.get(f"Q{period}"), int)
+                for period in range(1, 5)
+            ) and isinstance(final, int):
+                if sum(side_scores[f"Q{period}"] for period in range(1, 5)) != final:
+                    issues.append(f"team_{side}_period_total_mismatch")
+
+    scoring_totals: dict[tuple[str, str], int] = {}
+    for event in scoring:
+        if not isinstance(event, dict):
+            continue
+        team = event.get("team")
+        period = event.get("period")
+        points = event.get("points")
+        if team in {"A", "B"} and period in {"Q1", "Q2", "Q3", "Q4"} and isinstance(points, int):
+            key = (team, period)
+            scoring_totals[key] = scoring_totals.get(key, 0) + points
+    if scoring and isinstance(period_scores, dict):
+        for side in ("A", "B"):
+            side_scores = period_scores.get(side)
+            if not isinstance(side_scores, dict):
+                continue
+            for period in range(1, 5):
+                period_name = f"Q{period}"
+                written = side_scores.get(period_name)
+                if isinstance(written, int) and scoring_totals.get((side, period_name), 0) != written:
+                    issues.append(f"team_{side}_{period_name}_scoring_mismatch")
     return issues
 
 
@@ -158,13 +204,19 @@ def audit_fecaba_dataset(
         writer_id = _anonymous_writer_id(payload.get("writer_name"))
         review_status = _review_status(payload)
         issues = _ground_truth_issues(payload, catalog_record)
+        explicit_split = payload.get("evaluation_split")
+        if explicit_split not in {None, "train", "validation", "test"}:
+            issues.append("evaluation_split_invalid")
+            explicit_split = None
         evaluation_records.append(
             {
                 "document_id": document_id,
                 "source_sha256": catalog_record.get("sha256"),
                 "ground_truth_sha256": _sha256_file(path),
                 "writer_id": writer_id,
-                "split": assign_document_split(document_id, writer_id=writer_id),
+                "split": explicit_split
+                or assign_document_split(document_id, writer_id=writer_id),
+                "split_source": "explicit" if explicit_split else "derived",
                 "review_status": review_status,
                 "ground_truth_complete": not issues,
                 "issues": issues,
@@ -192,6 +244,9 @@ def audit_fecaba_dataset(
         and item["ground_truth_complete"]
     ]
     known_writers = {item["writer_id"] for item in evaluation_records if item["writer_id"]}
+    review_status_counts = dict(
+        sorted(Counter(item["review_status"] for item in evaluation_records).items())
+    )
     split_counts = {name: 0 for name in ("train", "validation", "test")}
     for item in evaluation_records:
         split_counts[item["split"]] += 1
@@ -221,6 +276,7 @@ def audit_fecaba_dataset(
         "ground_truth_documents": len(evaluation_records),
         "reviewed_ground_truth_documents": len(reviewed),
         "known_writers": len(known_writers),
+        "review_status_counts": review_status_counts,
         "split_counts": split_counts,
         "duplicate_documents": sorted(set(duplicate_documents)),
         "orphan_ground_truth": orphan_ground_truth,
