@@ -160,7 +160,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     dataset_predictions = sub.add_parser(
         "dataset-predict-baseline",
-        help="Generates deterministic parser predictions for reviewed M1 test data",
+        help="Generates parser predictions for reviewed M1 test data",
     )
     dataset_predictions.add_argument(
         "--dataset-root",
@@ -173,6 +173,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=Path("datasets/fecaba/evaluation/baseline-predictions.jsonl"),
     )
     dataset_predictions.add_argument("--dpi", type=int, default=300)
+    dataset_predictions.add_argument(
+        "--handwriting-model-dir",
+        type=Path,
+        help="Directory containing jersey.pt and/or foul.pt",
+    )
     dataset_baseline.add_argument(
         "--max-accepted-error-rate", type=float, default=0.01
     )
@@ -348,10 +353,16 @@ def main() -> None:
     if args.command == "dataset-predict-baseline":
         from .m1_audit import generate_fecaba_baseline_predictions
 
+        handwriting = None
+        if args.handwriting_model_dir is not None:
+            from .torch_recognition import TorchHandwritingRecognizer
+
+            handwriting = TorchHandwritingRecognizer(args.handwriting_model_dir)
         result = generate_fecaba_baseline_predictions(
             args.dataset_root,
             output=args.output,
             dpi=args.dpi,
+            handwriting=handwriting,
         )
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return

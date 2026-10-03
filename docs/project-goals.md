@@ -37,7 +37,7 @@ When work competes for time, prioritize it in this order:
 
 ## Current Milestone
 
-**Active milestone: M3 — Measured reliability.**
+**Active milestone: M4 — Real-world generalization.**
 
 M1 and M2 were completed on 2026-10-03. The M1 operational procedure and evidence format remain documented in [M1 — Trusted Evaluation Data](m1-evaluation.md).
 
@@ -45,24 +45,26 @@ M1 completion evidence: [M1 Status](m1-status.md).
 
 M2 completion evidence: [M2 Status](m2-status.md).
 
-Current measurement evidence: [M3 Status](m3-status.md).
+M3 completion evidence: [M3 Status](m3-status.md).
 
-M3 work is limited to measuring the FECABA parser and deriving acceptance policy from the M1 held-out corpus. The default work queue is:
+Current generalization evidence: [M4 Status](m4-status.md).
 
-- generating component and end-to-end predictions for every evaluated core-field type;
-- reporting accepted error rate, automation rate, global accuracy, and review rate together;
-- deriving acceptance thresholds from held-out evidence rather than checkpoint defaults;
-- measuring known-writer and unknown-writer slices separately where the corpus permits;
-- preserving M2 review and unresolved states when no threshold satisfies the quality gate.
+M4 work is limited to validating the FECABA parser across supported capture conditions and writers not represented in training. The default work queue is:
 
-The following work is frozen by default while M3 is active:
+- inventorying scan and photo capture conditions in the reviewed corpus;
+- assigning an evaluation document from a writer excluded from training;
+- reporting unseen-writer and capture-condition slices separately;
+- documenting observed failure modes and their review/unresolved behavior;
+- preserving the M3 review-all policy until new evidence supports a safe threshold.
+
+The following work is frozen by default while M4 is active:
 
 - support for new scoresheet formats;
 - product surfaces such as dashboards, mobile apps, or SaaS features;
-- optimization work that does not produce reproducible reliability evidence;
-- milestone M4-M6 work that does not remove a direct blocker for M3.
+- optimization work that does not produce reproducible generalization evidence;
+- milestone M5-M6 work that does not remove a direct blocker for M4.
 
-Advance from M3 to M4 only after every M3 exit criterion below has evidence in the repository or release records. When the active milestone changes, update this section in the same commit/PR that records the evidence for the transition.
+Advance from M4 to M5 only after every M4 exit criterion below has evidence in the repository or release records. When the active milestone changes, update this section in the same commit/PR that records the evidence for the transition.
 
 ## Goals Through v1.0
 

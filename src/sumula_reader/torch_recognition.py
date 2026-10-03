@@ -515,6 +515,11 @@ class TorchHandwritingRecognizer:
         self.torch = torch
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         root = Path(model_dir)
+        self.model_fingerprints = {
+            path.name: hashlib.sha256(path.read_bytes()).hexdigest()
+            for path in (root / "jersey.pt", root / "foul.pt")
+            if path.exists()
+        }
         self.jersey = self._load(root / "jersey.pt", "jersey")
         self.foul = self._load(root / "foul.pt", "foul")
         if self.jersey is None and self.foul is None:

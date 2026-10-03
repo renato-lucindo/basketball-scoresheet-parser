@@ -1,4 +1,5 @@
 import unittest
+from pathlib import Path
 
 from sumula_reader.cli import _parse_period_scores, _parse_roster, build_parser
 
@@ -79,6 +80,16 @@ class CliTests(unittest.TestCase):
         )
         self.assertTrue(args.jev)
         self.assertEqual(args.jev_model, "jev-preview")
+
+    def test_dataset_prediction_accepts_handwriting_models(self):
+        args = build_parser().parse_args(
+            [
+                "dataset-predict-baseline",
+                "--handwriting-model-dir",
+                "models/handwriting",
+            ]
+        )
+        self.assertEqual(args.handwriting_model_dir, Path("models/handwriting"))
 
     def test_review_commands_are_registered(self):
         prepare = build_parser().parse_args(

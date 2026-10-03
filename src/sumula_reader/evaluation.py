@@ -65,9 +65,10 @@ def choose_acceptance_threshold(
     max_accepted_error_rate: float = 0.01,
     min_automation_rate: float = 0.10,
 ) -> ThresholdMetrics | None:
-    """Escolhe o menor limiar que respeita o gate de erro aceito.
+    """Choose the most useful threshold that satisfies the quality gate.
 
-    Entre limiares validos, prioriza maior automacao; em empate, menor erro.
+    Valid thresholds prioritize automation, then lower accepted error and a
+    lower threshold. Returning ``None`` means every decision must be reviewed.
     """
     samples = list(records)
     if not samples:

@@ -4,17 +4,17 @@
     "sub13-alvares-x-ivv-u13-04-07-904697f7"
   ],
   "end_to_end": {
-    "candidate_coverage": 0.3548387096774194,
-    "candidate_decisions": 66,
+    "candidate_coverage": 0.6451612903225806,
+    "candidate_decisions": 120,
     "decision_state_counts": {
       "accepted": 0,
-      "review": 66,
-      "unresolved": 120
+      "review": 120,
+      "unresolved": 66
     },
     "decision_state_rates": {
       "accepted": 0.0,
-      "review": 0.3548387096774194,
-      "unresolved": 0.6451612903225806
+      "review": 0.6451612903225806,
+      "unresolved": 0.3548387096774194
     },
     "required_decisions": 186
   },
@@ -102,17 +102,17 @@
     },
     "individual_foul_symbol": {
       "decision_states": {
-        "candidate_coverage": 0.0,
-        "candidate_decisions": 0,
+        "candidate_coverage": 0.14285714285714285,
+        "candidate_decisions": 2,
         "decision_state_counts": {
           "accepted": 0,
-          "review": 0,
-          "unresolved": 14
+          "review": 2,
+          "unresolved": 12
         },
         "decision_state_rates": {
           "accepted": 0.0,
-          "review": 0.0,
-          "unresolved": 1.0
+          "review": 0.14285714285714285,
+          "unresolved": 0.8571428571428571
         },
         "required_decisions": 14
       },
@@ -121,7 +121,7 @@
         "accepted_error_rate": 0.0,
         "accepted_errors": 0,
         "automation_rate": 0.0,
-        "global_accuracy": 0.0,
+        "global_accuracy": 0.07142857142857142,
         "review_rate": 1.0,
         "reviewed": 14,
         "threshold": 1.0000000000000002,
@@ -170,17 +170,17 @@
     },
     "roster_jersey": {
       "decision_states": {
-        "candidate_coverage": 0.0,
-        "candidate_decisions": 0,
+        "candidate_coverage": 0.9090909090909091,
+        "candidate_decisions": 20,
         "decision_state_counts": {
           "accepted": 0,
-          "review": 0,
-          "unresolved": 22
+          "review": 20,
+          "unresolved": 2
         },
         "decision_state_rates": {
           "accepted": 0.0,
-          "review": 0.0,
-          "unresolved": 1.0
+          "review": 0.9090909090909091,
+          "unresolved": 0.09090909090909091
         },
         "required_decisions": 22
       },
@@ -204,17 +204,17 @@
     },
     "scoring_jersey": {
       "decision_states": {
-        "candidate_coverage": 0.0,
-        "candidate_decisions": 0,
+        "candidate_coverage": 0.6388888888888888,
+        "candidate_decisions": 23,
         "decision_state_counts": {
           "accepted": 0,
-          "review": 0,
-          "unresolved": 36
+          "review": 23,
+          "unresolved": 13
         },
         "decision_state_rates": {
           "accepted": 0.0,
-          "review": 0.0,
-          "unresolved": 1.0
+          "review": 0.6388888888888888,
+          "unresolved": 0.3611111111111111
         },
         "required_decisions": 36
       },
@@ -340,17 +340,17 @@
     },
     "written_final_score": {
       "decision_states": {
-        "candidate_coverage": 0.0,
-        "candidate_decisions": 0,
+        "candidate_coverage": 0.5,
+        "candidate_decisions": 1,
         "decision_state_counts": {
           "accepted": 0,
-          "review": 0,
-          "unresolved": 2
+          "review": 1,
+          "unresolved": 1
         },
         "decision_state_rates": {
           "accepted": 0.0,
-          "review": 0.0,
-          "unresolved": 1.0
+          "review": 0.5,
+          "unresolved": 0.5
         },
         "required_decisions": 2
       },
@@ -374,17 +374,17 @@
     },
     "written_period_score": {
       "decision_states": {
-        "candidate_coverage": 0.0,
-        "candidate_decisions": 0,
+        "candidate_coverage": 1.0,
+        "candidate_decisions": 8,
         "decision_state_counts": {
           "accepted": 0,
-          "review": 0,
-          "unresolved": 8
+          "review": 8,
+          "unresolved": 0
         },
         "decision_state_rates": {
           "accepted": 0.0,
-          "review": 0.0,
-          "unresolved": 1.0
+          "review": 1.0,
+          "unresolved": 0.0
         },
         "required_decisions": 8
       },
@@ -412,7 +412,7 @@
     "accepted_error_rate": 0.0,
     "accepted_errors": 0,
     "automation_rate": 0.0,
-    "global_accuracy": 0.10752688172043011,
+    "global_accuracy": 0.11290322580645161,
     "review_rate": 1.0,
     "reviewed": 186,
     "threshold": 1.0000000000000002,
@@ -420,7 +420,12 @@
   },
   "prediction_records": 186,
   "prediction_source": {
-    "mode": "deterministic_without_handwriting_models"
+    "implementation": "TorchHandwritingRecognizer",
+    "mode": "with_handwriting_models",
+    "model_sha256": {
+      "foul.pt": "bb1706f3344928100b4a95c8116238f10ecc1dccab21efef466006f5692419e9",
+      "jersey.pt": "1b3b64071a7881d46f5df3ceb32052b3e98f45d400897b1944d3e9a339d9de27"
+    }
   },
   "quality_gate": {
     "acceptance_policy": "review_all",
@@ -437,7 +442,7 @@
       "accepted_error_rate": 0.0,
       "accepted_errors": 0,
       "automation_rate": 0.0,
-      "global_accuracy": 0.10752688172043011,
+      "global_accuracy": 0.11290322580645161,
       "review_rate": 1.0,
       "reviewed": 186,
       "threshold": 1.0000000000000002,

@@ -17,6 +17,7 @@ from .evaluation import (
 
 
 REVIEWED_STATUSES = {"reviewed", "verified"}
+REVIEW_ALL_THRESHOLD = 1.0000000000000002
 
 
 def _read_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -362,6 +363,7 @@ def build_baseline_metrics(
     records_by_field_type: dict[str, list[PredictionRecord]] = {}
     field_ids: set[str] = set()
     field_type_counts: Counter[str] = Counter()
+    prediction_sources: set[str] = set()
     for row in rows:
         document_id = row.get("document_id")
         if document_id not in eligible_test_documents:
@@ -386,6 +388,13 @@ def build_baseline_metrics(
         if not isinstance(field_type, str) or not field_type.strip():
             raise ValueError("Predictions require a non-empty field_type")
         field_type_counts[field_type] += 1
+        prediction_source = row.get("prediction_source")
+        if prediction_source is not None:
+            if not isinstance(prediction_source, dict):
+                raise ValueError("prediction_source must be an object")
+            prediction_sources.add(
+                json.dumps(prediction_source, sort_keys=True, separators=(",", ":"))
+            )
         record = PredictionRecord(
                 expected=expected,
                 predicted=predicted,
@@ -397,6 +406,8 @@ def build_baseline_metrics(
         records_by_field_type.setdefault(field_type, []).append(record)
     if not records:
         raise ValueError("Prediction file is empty")
+    if len(prediction_sources) > 1:
+        raise ValueError("Predictions contain inconsistent source metadata")
 
     covered_documents = {record.document_id for record in records}
     missing_documents = sorted(eligible_test_documents - covered_documents)
@@ -411,7 +422,9 @@ def build_baseline_metrics(
         max_accepted_error_rate=max_accepted_error_rate,
         min_automation_rate=min_automation_rate,
     )
-    threshold = selected.threshold if selected is not None else 1.0
+    threshold = (
+        selected.threshold if selected is not None else REVIEW_ALL_THRESHOLD
+    )
     metrics = evaluate_threshold(records, threshold)
     writer_metrics = compare_known_unknown_writers(records, threshold)
     field_type_metrics: dict[str, dict[str, object]] = {}
@@ -422,19 +435,33 @@ def build_baseline_metrics(
             min_automation_rate=min_automation_rate,
         )
         field_threshold = (
-            field_selected.threshold if field_selected is not None else 1.0
+            field_selected.threshold
+            if field_selected is not None
+            else REVIEW_ALL_THRESHOLD
         )
         field_type_metrics[field_type] = {
             "quality_gate": {
                 "max_accepted_error_rate": max_accepted_error_rate,
                 "min_automation_rate": min_automation_rate,
                 "threshold_found": field_selected is not None,
+                "acceptance_policy": (
+                    "threshold" if field_selected is not None else "review_all"
+                ),
             },
             "metrics": asdict(evaluate_threshold(field_records, field_threshold)),
+            "decision_states": _decision_state_metrics(
+                field_records,
+                field_threshold,
+            ),
         }
     result = {
         "corpus_sha256": audit["corpus_sha256"],
         "prediction_records": len(records),
+        "prediction_source": (
+            json.loads(next(iter(prediction_sources)))
+            if prediction_sources
+            else {"mode": "unspecified"}
+        ),
         "field_type_counts": dict(sorted(field_type_counts.items())),
         "test_documents": sorted(covered_documents),
         "eligible_test_documents": sorted(eligible_test_documents),
@@ -442,8 +469,12 @@ def build_baseline_metrics(
             "max_accepted_error_rate": max_accepted_error_rate,
             "min_automation_rate": min_automation_rate,
             "threshold_found": selected is not None,
+            "acceptance_policy": (
+                "threshold" if selected is not None else "review_all"
+            ),
         },
         "metrics": asdict(metrics),
+        "end_to_end": _decision_state_metrics(records, threshold),
         "writer_metrics": {
             key: asdict(value) for key, value in writer_metrics.items()
         },
@@ -455,6 +486,35 @@ def build_baseline_metrics(
         encoding="utf-8",
     )
     return result
+
+
+def _decision_state_metrics(
+    records: list[PredictionRecord],
+    threshold: float,
+) -> dict[str, object]:
+    total = len(records)
+    accepted = sum(
+        record.predicted is not None and record.confidence >= threshold
+        for record in records
+    )
+    unresolved = sum(record.predicted is None for record in records)
+    review = total - accepted - unresolved
+    candidates = total - unresolved
+    return {
+        "required_decisions": total,
+        "candidate_decisions": candidates,
+        "candidate_coverage": candidates / total if total else 0.0,
+        "decision_state_counts": {
+            "accepted": accepted,
+            "review": review,
+            "unresolved": unresolved,
+        },
+        "decision_state_rates": {
+            "accepted": accepted / total if total else 0.0,
+            "review": review / total if total else 0.0,
+            "unresolved": unresolved / total if total else 0.0,
+        },
+    }
 
 
 def _prediction_row(
@@ -483,10 +543,14 @@ def generate_fecaba_baseline_predictions(
     *,
     output: str | Path,
     dpi: int = 300,
+    handwriting=None,
 ) -> dict[str, object]:
-    """Run the deterministic parser and compare it with reviewed test labels."""
+    """Run the parser and compare its core-field predictions with reviewed labels."""
     from .fecaba_dataset import _foul_labels
+    from .imaging import load_document, normalize_document
+    from .participation import RosterExtraction, extract_roster
     from .pipeline import AnalysisContext, analyze_path
+    from .template import FECABA_V1
 
     root = Path(dataset_root)
     catalog = {
@@ -507,6 +571,18 @@ def generate_fecaba_baseline_predictions(
         raise ValueError("No reviewed and complete test documents are available")
 
     rows: list[dict[str, object]] = []
+    prediction_source: dict[str, object] = {
+        "mode": (
+            "with_handwriting_models"
+            if handwriting is not None
+            else "deterministic_without_handwriting_models"
+        )
+    }
+    if handwriting is not None:
+        prediction_source["implementation"] = type(handwriting).__name__
+        fingerprints = getattr(handwriting, "model_fingerprints", None)
+        if isinstance(fingerprints, dict):
+            prediction_source["model_sha256"] = dict(sorted(fingerprints.items()))
     for manifest_item in eligible:
         document_id = str(manifest_item["document_id"])
         ground_truth = json.loads(
@@ -527,12 +603,44 @@ def generate_fecaba_baseline_predictions(
                 writer_id=str(writer_id) if writer_id else None,
                 writer_known=writer_id is not None,
             ),
+            handwriting=handwriting,
             dpi=dpi,
         )
+        roster_candidates: dict[str, RosterExtraction] = {
+            side: RosterExtraction() for side in ("A", "B")
+        }
+        if handwriting is not None:
+            image = load_document(root / record["source_path"], dpi=dpi)
+            normalized = normalize_document(image, FECABA_V1)
+            roster_candidates = {
+                side: extract_roster(
+                    normalized.image,
+                    team=side,
+                    recognizer=handwriting,
+                    writer_id=str(writer_id) if writer_id else None,
+                )
+                for side in ("A", "B")
+            }
         writer_known = writer_id is not None
 
         for side in ("A", "B"):
             team = result.teams[side]
+            roster_observations = {
+                item.row: item for item in roster_candidates[side].observations
+            }
+            for row_number, expected_jersey in enumerate(rosters[side], start=1):
+                observation = roster_observations.get(row_number)
+                rows.append(
+                    _prediction_row(
+                        document_id=document_id,
+                        field_id=f"roster:{side}:{row_number}",
+                        field_type="roster_jersey",
+                        expected=expected_jersey,
+                        predicted=(observation.jersey if observation is not None else None),
+                        confidence=(observation.confidence if observation is not None else 0.0),
+                        writer_known=writer_known,
+                    )
+                )
             predicted_scores = {
                 event.running_score: event for event in team.scoring_events
             }
@@ -622,6 +730,25 @@ def generate_fecaba_baseline_predictions(
                         writer_known=writer_known,
                     )
                 )
+                rows.append(
+                    _prediction_row(
+                        document_id=document_id,
+                        field_id=f"written_period_score:{side}:Q{period}",
+                        field_type="written_period_score",
+                        expected=ground_truth["period_scores"][side][f"Q{period}"],
+                        predicted=(
+                            predicted_period.written_score_candidate
+                            if predicted_period is not None
+                            else None
+                        ),
+                        confidence=(
+                            predicted_period.confidence
+                            if predicted_period is not None
+                            else 0.0
+                        ),
+                        writer_known=writer_known,
+                    )
+                )
             scoring_confidences = [
                 float(event.confidence or 0.0) for event in team.scoring_events
             ]
@@ -633,6 +760,17 @@ def generate_fecaba_baseline_predictions(
                     expected=ground_truth["final_score"][side],
                     predicted=team.calculated_score,
                     confidence=(min(scoring_confidences) if scoring_confidences else 0.0),
+                    writer_known=writer_known,
+                )
+            )
+            rows.append(
+                _prediction_row(
+                    document_id=document_id,
+                    field_id=f"written_final_score:{side}",
+                    field_type="written_final_score",
+                    expected=ground_truth["final_score"][side],
+                    predicted=team.written_final_score_candidate,
+                    confidence=team.written_final_score_confidence,
                     writer_known=writer_known,
                 )
             )
@@ -718,10 +856,15 @@ def generate_fecaba_baseline_predictions(
     target.parent.mkdir(parents=True, exist_ok=True)
     with target.open("w", encoding="utf-8") as handle:
         for row in rows:
+            row["prediction_source"] = prediction_source
             handle.write(json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n")
     return {
         "documents": len(eligible),
         "prediction_records": len(rows),
         "output": str(target),
-        "parser_mode": "deterministic_without_handwriting_models",
+        "parser_mode": (
+            "with_handwriting_models"
+            if handwriting is not None
+            else "deterministic_without_handwriting_models"
+        ),
     }
