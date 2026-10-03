@@ -52,6 +52,7 @@ from .evaluation import (
     compare_known_unknown_writers,
     evaluate_threshold,
 )
+from .written_scores import PeriodScoreCell, extract_period_score_candidates
 
 __all__ = [
     "DecisionStatus",
@@ -103,6 +104,8 @@ __all__ = [
     "choose_acceptance_threshold",
     "compare_known_unknown_writers",
     "evaluate_threshold",
+    "PeriodScoreCell",
+    "extract_period_score_candidates",
 ]
 
 __version__ = "0.1.0"

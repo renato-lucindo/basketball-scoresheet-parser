@@ -39,6 +39,23 @@ def _team_fields(team: TeamResult) -> list[CoreFieldStatus]:
         number in regular_periods and regular_periods[number].written_score is not None
         for number in range(1, 5)
     )
+    period_candidates_available = all(
+        number in regular_periods
+        and regular_periods[number].written_score_candidate is not None
+        for number in range(1, 5)
+    )
+    if written_periods_available:
+        period_scoring_status = _combined_status(
+            regular_periods[number].status for number in range(1, 5)
+        )
+    elif period_candidates_available:
+        period_scoring_status = _combined_status(
+            regular_periods[number].status for number in range(1, 5)
+        )
+        if period_scoring_status is DecisionStatus.ACCEPTED:
+            period_scoring_status = DecisionStatus.REVIEW
+    else:
+        period_scoring_status = DecisionStatus.UNRESOLVED
     team_foul_periods = {indicator.period for indicator in team.team_fouls}
     participation_status = _combined_status(
         player.participation_status for player in team.players
@@ -84,10 +101,10 @@ def _team_fields(team: TeamResult) -> list[CoreFieldStatus]:
             status=starter_status,
             reason=(None if starter_status is DecisionStatus.ACCEPTED else f"starter evidence requires review; detected {len(team.starters)} starters"),
         ),
-        _field(
-            f"teams.{side}.period_scoring",
-            written_periods_available,
-            "written scores for regular periods were not extracted",
+        CoreFieldStatus(
+            path=f"teams.{side}.period_scoring",
+            status=period_scoring_status,
+            reason=(None if period_scoring_status is DecisionStatus.ACCEPTED else "written period scores are unavailable or require review"),
         ),
         CoreFieldStatus(
             path=f"teams.{side}.scoring_events",

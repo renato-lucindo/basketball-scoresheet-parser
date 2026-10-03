@@ -170,6 +170,7 @@ class PeriodResult:
     period_type: PeriodType = PeriodType.REGULAR
     score: int | None = None
     written_score: int | None = None
+    written_score_candidate: int | None = None
     confidence: float | None = None
     status: DecisionStatus = DecisionStatus.ACCEPTED
 

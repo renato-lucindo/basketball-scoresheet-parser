@@ -36,13 +36,15 @@ Each team contains:
 
 - `side` and `name`;
 - `players`, including participation, starter state, fouls, and calculated scoring totals;
-- `periods`, with calculated and written scores kept separately;
+- `periods`, with calculated scores, reviewed written scores, and uncalibrated written-score candidates kept separately;
 - `scoring_events`, including running score, jersey, shot type, points, confidence, and decision status;
 - `team_fouls` for each period;
 - `calculated_score` and `written_final_score` kept separately;
 - team-level `status` and `warnings`.
 
 The parser never overwrites a written score with a calculated value. Reconciliation compares both values and reports a contradiction for review.
+
+`written_score_candidate` preserves automatic period-score recognition while its acceptance threshold is uncalibrated. A reviewed override is stored in `written_score`; the candidate remains separate so consumers cannot mistake it for accepted data.
 
 ## Core-field inventory
 

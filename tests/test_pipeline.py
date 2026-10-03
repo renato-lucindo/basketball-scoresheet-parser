@@ -61,6 +61,10 @@ class PipelineTests(unittest.TestCase):
         with (
             patch("sumula_reader.pipeline.extract_roster", side_effect=roster),
             patch("sumula_reader.pipeline.extract_scoring_events", return_value=[]),
+            patch(
+                "sumula_reader.pipeline.extract_period_score_candidates",
+                return_value={"A": [], "B": []},
+            ),
             patch("sumula_reader.pipeline.extract_players", side_effect=players),
             patch("sumula_reader.pipeline.extract_player_foul_data", return_value=([], [])),
             patch("sumula_reader.pipeline.extract_team_foul_indicators", return_value=[]),

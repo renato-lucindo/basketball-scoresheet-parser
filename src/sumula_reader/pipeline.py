@@ -26,6 +26,7 @@ from .recognition import (
 from .reconcile import reconcile_document
 from .scoring import extract_scoring_events
 from .template import FECABA_V1, TemplateSpec
+from .written_scores import extract_period_score_candidates
 
 
 @dataclass(slots=True)
@@ -93,6 +94,18 @@ def analyze_image(
         recognizer=jersey_recognizer,
         decision_engine=decision_engine,
     )
+    period_results = extract_period_score_candidates(
+        normalized_image,
+        recognizer=handwriting,
+        template=template,
+        writer_id=context.writer_id,
+        writer_profile=context.writer_profile,
+    )
+    for side, scores in context.period_scores.items():
+        period_results[side.upper()] = [
+            PeriodResult(number=index, written_score=score)
+            for index, score in enumerate(scores, start=1)
+        ]
 
     teams: dict[str, TeamResult] = {}
     for side in ("A", "B"):
@@ -126,10 +139,7 @@ def analyze_image(
             players=players,
             roster_status=roster_results[side].status,
             roster_observations=roster_results[side].observations,
-            periods=[
-                PeriodResult(number=index, written_score=score)
-                for index, score in enumerate(context.period_scores.get(side, ()), start=1)
-            ],
+            periods=period_results.get(side, []),
             scoring_events=[
                 event for event in scoring_events if event.team == side
             ],

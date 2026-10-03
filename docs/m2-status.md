@@ -10,6 +10,8 @@ The public `analyze` command already accepts a FECABA image or PDF, normalizes i
 
 The command can recognize occupied roster rows with an optional handwriting model. Because M1 found no acceptance threshold that satisfies the quality gate, automatic jersey candidates remain in review and do not silently become players. Invalid and duplicate rows are unresolved. Callers can supply reviewed rosters as overrides. Team names, written period scores, and written final scores can also be supplied as explicit context while automatic extraction is developed.
 
+The same safety rule now applies to the eight written regular-period score cells. The parser crops and recognizes each cell, preserves the numeric candidate and confidence, and leaves it in review until a calibrated threshold satisfies the project quality gate. Reviewed `--period-scores-a` and `--period-scores-b` values remain accepted overrides and are reconciled against scoring events.
+
 ## Core-field contract
 
 Every analysis result now includes `core_fields`, a machine-readable inventory for the M2 record. Each required field has an `accepted`, `review`, or `unresolved` status and an explanation when it is not accepted. Missing teams and unimplemented extraction paths therefore cannot appear as a clean accepted result.
@@ -33,7 +35,7 @@ The `analyze` command accepts the optional context arguments `--team-a-name`, `-
 ## Remaining M2 work
 
 - Extract team names automatically and validate roster-row occupancy against real held-out forms.
-- Extract written period and final scores and reconcile them with scoring events.
+- Calibrate written period-score recognition and add written final-score extraction.
 - Define behavior when optional handwriting models are absent and keep every unavailable recognition result explicit.
 - Add a representative end-to-end image/PDF fixture that asserts the complete JSON structure.
 - Stabilize the documented output contract as automatic extraction replaces explicit context.
@@ -46,4 +48,4 @@ Run the full suite from a clean development environment:
 python -m pytest -q
 ```
 
-The current M2 branch passes 112 tests plus 3 parameterized subtests.
+The current M2 branch passes 114 tests plus 3 parameterized subtests.

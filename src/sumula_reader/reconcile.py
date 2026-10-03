@@ -16,11 +16,7 @@ from .validation import validate_team
 def reconcile_team(team: TeamResult) -> TeamResult:
     warnings: list[str] = []
     events = sorted(team.scoring_events, key=lambda event: event.running_score)
-    written_period_scores = {
-        period.number: period.written_score
-        for period in team.periods
-        if period.written_score is not None
-    }
+    source_periods = {period.number: period for period in team.periods}
 
     team.warnings = []
     for player in team.players:
@@ -88,7 +84,26 @@ def reconcile_team(team: TeamResult) -> TeamResult:
                 PeriodType.REGULAR if period <= 4 else PeriodType.OVERTIME
             ),
             score=period_points.get(period, 0),
-            written_score=written_period_scores.get(period),
+            written_score=(
+                source_periods[period].written_score
+                if period in source_periods
+                else None
+            ),
+            written_score_candidate=(
+                source_periods[period].written_score_candidate
+                if period in source_periods
+                else None
+            ),
+            confidence=(
+                source_periods[period].confidence
+                if period in source_periods
+                else None
+            ),
+            status=(
+                source_periods[period].status
+                if period in source_periods
+                else DecisionStatus.UNRESOLVED
+            ),
         )
         for period in range(1, max(4, max(period_points, default=4)) + 1)
     ]
