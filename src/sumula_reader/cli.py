@@ -174,12 +174,26 @@ def build_parser() -> argparse.ArgumentParser:
     )
     dataset_predictions.add_argument("--dpi", type=int, default=300)
     dataset_predictions.add_argument(
+        "--evaluation-splits",
+        nargs="+",
+        choices=("train", "validation", "test"),
+        default=["test"],
+        help="Dataset splits to evaluate (default: test)",
+    )
+    dataset_predictions.add_argument(
         "--handwriting-model-dir",
         type=Path,
         help="Directory containing jersey.pt and/or foul.pt",
     )
     dataset_baseline.add_argument(
         "--max-accepted-error-rate", type=float, default=0.01
+    )
+    dataset_baseline.add_argument(
+        "--evaluation-splits",
+        nargs="+",
+        choices=("train", "validation", "test"),
+        default=["test"],
+        help="Dataset splits represented by the predictions (default: test)",
     )
     dataset_baseline.add_argument("--min-automation-rate", type=float, default=0.10)
 
@@ -363,6 +377,7 @@ def main() -> None:
             output=args.output,
             dpi=args.dpi,
             handwriting=handwriting,
+            evaluation_splits=tuple(args.evaluation_splits),
         )
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return
@@ -376,6 +391,7 @@ def main() -> None:
             output_dir=args.output_dir,
             max_accepted_error_rate=args.max_accepted_error_rate,
             min_automation_rate=args.min_automation_rate,
+            evaluation_splits=tuple(args.evaluation_splits),
         )
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return

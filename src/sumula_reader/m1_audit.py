@@ -343,6 +343,7 @@ def build_baseline_metrics(
     output_dir: str | Path | None = None,
     max_accepted_error_rate: float = 0.01,
     min_automation_rate: float = 0.10,
+    evaluation_splits: tuple[str, ...] = ("test",),
 ) -> dict[str, Any]:
     root = Path(dataset_root)
     artifacts = Path(output_dir) if output_dir is not None else root / "evaluation"
@@ -351,7 +352,7 @@ def build_baseline_metrics(
     eligible_test_documents = {
         item["document_id"]
         for item in manifest
-        if item.get("split") == "test"
+        if item.get("split") in evaluation_splits
         and item.get("review_status") in REVIEWED_STATUSES
         and item.get("ground_truth_complete") is True
     }
@@ -361,6 +362,11 @@ def build_baseline_metrics(
     rows = _read_jsonl(Path(predictions))
     records: list[PredictionRecord] = []
     records_by_field_type: dict[str, list[PredictionRecord]] = {}
+    records_by_capture_condition: dict[str, list[PredictionRecord]] = {}
+    records_by_writer_exposure: dict[str, list[PredictionRecord]] = {
+        "seen_in_training": [],
+        "unseen_in_training": [],
+    }
     field_ids: set[str] = set()
     field_type_counts: Counter[str] = Counter()
     prediction_sources: set[str] = set()
@@ -404,6 +410,16 @@ def build_baseline_metrics(
             )
         records.append(record)
         records_by_field_type.setdefault(field_type, []).append(record)
+        capture_condition = row.get("capture_condition", "unspecified")
+        if not isinstance(capture_condition, str) or not capture_condition.strip():
+            raise ValueError("capture_condition must be a non-empty string")
+        records_by_capture_condition.setdefault(capture_condition, []).append(record)
+        writer_exposure = (
+            "seen_in_training"
+            if bool(row.get("writer_seen_in_training", False))
+            else "unseen_in_training"
+        )
+        records_by_writer_exposure[writer_exposure].append(record)
     if not records:
         raise ValueError("Prediction file is empty")
     if len(prediction_sources) > 1:
@@ -457,6 +473,7 @@ def build_baseline_metrics(
     result = {
         "corpus_sha256": audit["corpus_sha256"],
         "prediction_records": len(records),
+        "evaluation_splits": list(evaluation_splits),
         "prediction_source": (
             json.loads(next(iter(prediction_sources)))
             if prediction_sources
@@ -477,6 +494,14 @@ def build_baseline_metrics(
         "end_to_end": _decision_state_metrics(records, threshold),
         "writer_metrics": {
             key: asdict(value) for key, value in writer_metrics.items()
+        },
+        "writer_generalization_metrics": {
+            key: _slice_metrics(value, threshold)
+            for key, value in records_by_writer_exposure.items()
+        },
+        "capture_condition_metrics": {
+            key: _slice_metrics(value, threshold)
+            for key, value in sorted(records_by_capture_condition.items())
         },
         "field_type_metrics": field_type_metrics,
     }
@@ -517,6 +542,16 @@ def _decision_state_metrics(
     }
 
 
+def _slice_metrics(
+    records: list[PredictionRecord],
+    threshold: float,
+) -> dict[str, object]:
+    return {
+        "metrics": asdict(evaluate_threshold(records, threshold)),
+        "decision_states": _decision_state_metrics(records, threshold),
+    }
+
+
 def _prediction_row(
     *,
     document_id: str,
@@ -544,6 +579,7 @@ def generate_fecaba_baseline_predictions(
     output: str | Path,
     dpi: int = 300,
     handwriting=None,
+    evaluation_splits: tuple[str, ...] = ("test",),
 ) -> dict[str, object]:
     """Run the parser and compare its core-field predictions with reviewed labels."""
     from .fecaba_dataset import _foul_labels
@@ -560,10 +596,15 @@ def generate_fecaba_baseline_predictions(
     audit_dir = Path(output).parent
     audit_fecaba_dataset(root, output_dir=audit_dir)
     manifest = _read_jsonl(audit_dir / "evaluation-manifest.jsonl")
+    training_writer_ids = {
+        str(item["writer_id"])
+        for item in manifest
+        if item.get("split") == "train" and item.get("writer_id")
+    }
     eligible = [
         item
         for item in manifest
-        if item.get("split") == "test"
+        if item.get("split") in evaluation_splits
         and item.get("review_status") in REVIEWED_STATUSES
         and item.get("ground_truth_complete") is True
     ]
@@ -584,6 +625,7 @@ def generate_fecaba_baseline_predictions(
         if isinstance(fingerprints, dict):
             prediction_source["model_sha256"] = dict(sorted(fingerprints.items()))
     for manifest_item in eligible:
+        row_start = len(rows)
         document_id = str(manifest_item["document_id"])
         ground_truth = json.loads(
             (root / "ground_truth" / f"{document_id}.json").read_text(
@@ -622,6 +664,17 @@ def generate_fecaba_baseline_predictions(
                 for side in ("A", "B")
             }
         writer_known = writer_id is not None
+        writer_seen_in_training = (
+            str(writer_id) in training_writer_ids if writer_id is not None else False
+        )
+        extension = str(record.get("extension") or Path(record["source_path"]).suffix)
+        capture_condition = (
+            "camera_image"
+            if extension.casefold() in {".jpg", ".jpeg", ".png"}
+            else "pdf_scan"
+            if extension.casefold() == ".pdf"
+            else "other"
+        )
 
         for side in ("A", "B"):
             team = result.teams[side]
@@ -852,6 +905,10 @@ def generate_fecaba_baseline_predictions(
                         )
                     )
 
+        for row in rows[row_start:]:
+            row["writer_seen_in_training"] = writer_seen_in_training
+            row["capture_condition"] = capture_condition
+
     target = Path(output)
     target.parent.mkdir(parents=True, exist_ok=True)
     with target.open("w", encoding="utf-8") as handle:
@@ -861,6 +918,7 @@ def generate_fecaba_baseline_predictions(
     return {
         "documents": len(eligible),
         "prediction_records": len(rows),
+        "evaluation_splits": list(evaluation_splits),
         "output": str(target),
         "parser_mode": (
             "with_handwriting_models"

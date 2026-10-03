@@ -1,4 +1,34 @@
 {
+  "capture_condition_metrics": {
+    "pdf_scan": {
+      "decision_states": {
+        "candidate_coverage": 0.6451612903225806,
+        "candidate_decisions": 120,
+        "decision_state_counts": {
+          "accepted": 0,
+          "review": 120,
+          "unresolved": 66
+        },
+        "decision_state_rates": {
+          "accepted": 0.0,
+          "review": 0.6451612903225806,
+          "unresolved": 0.3548387096774194
+        },
+        "required_decisions": 186
+      },
+      "metrics": {
+        "accepted": 0,
+        "accepted_error_rate": 0.0,
+        "accepted_errors": 0,
+        "automation_rate": 0.0,
+        "global_accuracy": 0.11290322580645161,
+        "review_rate": 1.0,
+        "reviewed": 186,
+        "threshold": 1.0000000000000002,
+        "total": 186
+      }
+    }
+  },
   "corpus_sha256": "92f9e8d1124a2839b2029bc4e55d66309800629916c38e07d9031f2e4a726ba7",
   "eligible_test_documents": [
     "sub13-alvares-x-ivv-u13-04-07-904697f7"
@@ -18,6 +48,9 @@
     },
     "required_decisions": 186
   },
+  "evaluation_splits": [
+    "test"
+  ],
   "field_type_counts": {
     "final_score": 2,
     "individual_foul_period": 14,
@@ -436,6 +469,64 @@
   "test_documents": [
     "sub13-alvares-x-ivv-u13-04-07-904697f7"
   ],
+  "writer_generalization_metrics": {
+    "seen_in_training": {
+      "decision_states": {
+        "candidate_coverage": 0.0,
+        "candidate_decisions": 0,
+        "decision_state_counts": {
+          "accepted": 0,
+          "review": 0,
+          "unresolved": 0
+        },
+        "decision_state_rates": {
+          "accepted": 0.0,
+          "review": 0.0,
+          "unresolved": 0.0
+        },
+        "required_decisions": 0
+      },
+      "metrics": {
+        "accepted": 0,
+        "accepted_error_rate": 0.0,
+        "accepted_errors": 0,
+        "automation_rate": 0.0,
+        "global_accuracy": 0.0,
+        "review_rate": 0.0,
+        "reviewed": 0,
+        "threshold": 1.0000000000000002,
+        "total": 0
+      }
+    },
+    "unseen_in_training": {
+      "decision_states": {
+        "candidate_coverage": 0.6451612903225806,
+        "candidate_decisions": 120,
+        "decision_state_counts": {
+          "accepted": 0,
+          "review": 120,
+          "unresolved": 66
+        },
+        "decision_state_rates": {
+          "accepted": 0.0,
+          "review": 0.6451612903225806,
+          "unresolved": 0.3548387096774194
+        },
+        "required_decisions": 186
+      },
+      "metrics": {
+        "accepted": 0,
+        "accepted_error_rate": 0.0,
+        "accepted_errors": 0,
+        "automation_rate": 0.0,
+        "global_accuracy": 0.11290322580645161,
+        "review_rate": 1.0,
+        "reviewed": 186,
+        "threshold": 1.0000000000000002,
+        "total": 186
+      }
+    }
+  },
   "writer_metrics": {
     "known_writer": {
       "accepted": 0,

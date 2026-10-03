@@ -37,7 +37,7 @@ When work competes for time, prioritize it in this order:
 
 ## Current Milestone
 
-**Active milestone: M4 — Real-world generalization.**
+**Active milestone: M5 — Efficient human review.**
 
 M1 and M2 were completed on 2026-10-03. The M1 operational procedure and evidence format remain documented in [M1 — Trusted Evaluation Data](m1-evaluation.md).
 
@@ -47,24 +47,26 @@ M2 completion evidence: [M2 Status](m2-status.md).
 
 M3 completion evidence: [M3 Status](m3-status.md).
 
-Current generalization evidence: [M4 Status](m4-status.md).
+M4 completion evidence: [M4 Status](m4-status.md).
 
-M4 work is limited to validating the FECABA parser across supported capture conditions and writers not represented in training. The default work queue is:
+Current review-workflow evidence: [M5 Status](m5-status.md).
 
-- inventorying scan and photo capture conditions in the reviewed corpus;
-- assigning an evaluation document from a writer excluded from training;
-- reporting unseen-writer and capture-condition slices separately;
-- documenting observed failure modes and their review/unresolved behavior;
-- preserving the M3 review-all policy until new evidence supports a safe threshold.
+M5 work is limited to making review-required decisions efficient and reusable without weakening the accepted-error gate. The default work queue is:
 
-The following work is frozen by default while M4 is active:
+- documenting the end-to-end review workflow for contributors;
+- preserving reviewed corrections as reusable training and evaluation data;
+- detecting stale or contradictory review artifacts before reuse;
+- reporting review and automation rates release over release;
+- accepting threshold or model changes only when the accepted-error gate continues to hold.
+
+The following work is frozen by default while M5 is active:
 
 - support for new scoresheet formats;
 - product surfaces such as dashboards, mobile apps, or SaaS features;
-- optimization work that does not produce reproducible generalization evidence;
-- milestone M5-M6 work that does not remove a direct blocker for M4.
+- optimization work that does not reduce review with reproducible quality evidence;
+- M6 release work that does not remove a direct blocker for M5.
 
-Advance from M4 to M5 only after every M4 exit criterion below has evidence in the repository or release records. When the active milestone changes, update this section in the same commit/PR that records the evidence for the transition.
+Advance from M5 to M6 only after every M5 exit criterion below has evidence in the repository or release records. When the active milestone changes, update this section in the same commit/PR that records the evidence for the transition.
 
 ## Goals Through v1.0
 

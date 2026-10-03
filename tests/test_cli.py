@@ -91,6 +91,27 @@ class CliTests(unittest.TestCase):
         )
         self.assertEqual(args.handwriting_model_dir, Path("models/handwriting"))
 
+    def test_dataset_evaluation_accepts_multiple_splits(self):
+        predicted = build_parser().parse_args(
+            [
+                "dataset-predict-baseline",
+                "--evaluation-splits",
+                "validation",
+                "test",
+            ]
+        )
+        measured = build_parser().parse_args(
+            [
+                "dataset-baseline",
+                "predictions.jsonl",
+                "--evaluation-splits",
+                "validation",
+                "test",
+            ]
+        )
+        self.assertEqual(predicted.evaluation_splits, ["validation", "test"])
+        self.assertEqual(measured.evaluation_splits, ["validation", "test"])
+
     def test_review_commands_are_registered(self):
         prepare = build_parser().parse_args(
             ["dataset-review-prepare", "--stage", "scoring"]
