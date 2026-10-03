@@ -43,6 +43,8 @@ M1 was completed on 2026-10-03. Its operational procedure and evidence format re
 
 Completion evidence: [M1 Status](m1-status.md).
 
+Current implementation inventory: [M2 Status](m2-status.md).
+
 M2 work is limited to completing and validating the public FECABA image/PDF-to-`DocumentResult` path. The default work queue is:
 
 - inventorying the fields currently emitted by the public CLI/API against the M2 core record;

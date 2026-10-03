@@ -5,6 +5,7 @@ from pathlib import Path
 
 import numpy as np
 
+from .completeness import assess_core_fields
 from .decision import DecisionEngine
 from .fouls import extract_player_foul_data, extract_team_foul_indicators
 from .imaging import load_document, normalize_document
@@ -115,7 +116,7 @@ def analyze_image(
         ),
         teams=teams,
     )
-    return reconcile_document(result)
+    return assess_core_fields(reconcile_document(result))
 
 
 def analyze_path(

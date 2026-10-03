@@ -4,6 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
+from .completeness import assess_core_fields
 from .imaging import load_document, normalize_document, save_debug_bundle
 from .label_studio_review import REVIEW_STAGES
 from .models import DocumentResult
@@ -241,7 +242,13 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> None:
     args = build_parser().parse_args()
     if args.command == "schema":
-        print(json.dumps(DocumentResult().to_dict(), ensure_ascii=False, indent=2))
+        print(
+            json.dumps(
+                assess_core_fields(DocumentResult()).to_dict(),
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
         return
 
     if args.command == "debug":

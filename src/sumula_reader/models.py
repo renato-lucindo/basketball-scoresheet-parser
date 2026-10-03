@@ -187,10 +187,18 @@ class TeamResult:
 
 
 @dataclass(slots=True)
+class CoreFieldStatus:
+    path: str
+    status: DecisionStatus
+    reason: str | None = None
+
+
+@dataclass(slots=True)
 class DocumentResult:
     schema_version: str = "0.1"
     metadata: DocumentMetadata = field(default_factory=DocumentMetadata)
     teams: dict[str, TeamResult] = field(default_factory=dict)
+    core_fields: list[CoreFieldStatus] = field(default_factory=list)
     status: DecisionStatus = DecisionStatus.ACCEPTED
     warnings: list[str] = field(default_factory=list)
 

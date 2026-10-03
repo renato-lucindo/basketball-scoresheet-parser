@@ -1,4 +1,5 @@
 from .models import (
+    CoreFieldStatus,
     DecisionStatus,
     DocumentResult,
     FoulEvent,
@@ -54,6 +55,7 @@ from .evaluation import (
 __all__ = [
     "DecisionStatus",
     "DocumentResult",
+    "CoreFieldStatus",
     "FoulEvent",
     "FoulKind",
     "FoulTerminal",
