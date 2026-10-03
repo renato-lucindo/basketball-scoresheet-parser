@@ -46,4 +46,4 @@ Run the full suite from a clean development environment:
 python -m pytest -q
 ```
 
-The initial M2 core-field slice passes 101 tests.
+The current M2 branch passes 107 tests plus 3 parameterized subtests.
