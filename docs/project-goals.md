@@ -37,7 +37,7 @@ When work competes for time, prioritize it in this order:
 
 ## Current Milestone
 
-**Active milestone: M5 — Efficient human review.**
+**Active milestone: M6 — FECABA v1.0.**
 
 M1 and M2 were completed on 2026-10-03. The M1 operational procedure and evidence format remain documented in [M1 — Trusted Evaluation Data](m1-evaluation.md).
 
@@ -49,24 +49,26 @@ M3 completion evidence: [M3 Status](m3-status.md).
 
 M4 completion evidence: [M4 Status](m4-status.md).
 
-Current review-workflow evidence: [M5 Status](m5-status.md).
+M5 completion evidence: [M5 Status](m5-status.md).
 
-M5 work is limited to making review-required decisions efficient and reusable without weakening the accepted-error gate. The default work queue is:
+Current release evidence: [M6 Status](m6-status.md).
 
-- documenting the end-to-end review workflow for contributors;
-- preserving reviewed corrections as reusable training and evaluation data;
-- detecting stale or contradictory review artifacts before reuse;
-- reporting review and automation rates release over release;
-- accepting threshold or model changes only when the accepted-error gate continues to hold.
+M6 work is limited to producing a reproducible, documented, tested FECABA v1.0 release. The default work queue is:
 
-The following work is frozen by default while M5 is active:
+- validating installation and tests from a clean checkout;
+- freezing and documenting the public output contract and supported inputs;
+- recording the evaluation corpus, reports, and release quality policy;
+- preparing version and release notes;
+- creating the v1.0 tag only after every release gate is verified.
+
+The following work is frozen by default while M6 is active:
 
 - support for new scoresheet formats;
 - product surfaces such as dashboards, mobile apps, or SaaS features;
-- optimization work that does not reduce review with reproducible quality evidence;
-- M6 release work that does not remove a direct blocker for M5.
+- new parser features that do not remove a release blocker;
+- post-v1.0 format expansion and product surfaces.
 
-Advance from M5 to M6 only after every M5 exit criterion below has evidence in the repository or release records. When the active milestone changes, update this section in the same commit/PR that records the evidence for the transition.
+Declare M6 complete only after every M6 exit criterion below has evidence in the repository or release records. Tagging and publishing remain final release actions after the release commit is reviewed.
 
 ## Goals Through v1.0
 

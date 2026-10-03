@@ -251,7 +251,7 @@ def _load_ground_truth(path: Path) -> dict[str, object]:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        raise ValueError(f"Gabarito invalido em {path}: {exc}") from exc
+        raise ValueError(f"Invalid ground truth in {path}: {exc}") from exc
     if not isinstance(payload, dict):
         raise ValueError(f"Gabarito deve ser um objeto JSON: {path}")
     teams = payload.get("teams")
@@ -273,7 +273,7 @@ def _load_ground_truth(path: Path) -> dict[str, object]:
         roster = {int(number) for number in team["roster"]}
         for jersey in roster:
             if jersey < 0 or jersey > 99:
-                raise ValueError(f"Camisa fora de 0..99 na equipe {side}: {jersey}")
+                raise ValueError(f"Jersey number outside 0..99 for team {side}: {jersey}")
         individual = team.get("individual_fouls")
         if not isinstance(individual, dict):
             raise ValueError(f"individual_fouls da equipe {side} deve ser objeto")
@@ -365,12 +365,12 @@ def _load_ground_truth(path: Path) -> dict[str, object]:
             raise ValueError(f"Equipe invalida em scoring[{index}]")
         points = event.get("points")
         if points not in {1, 2, 3}:
-            raise ValueError(f"Pontos invalidos em scoring[{index}]")
+            raise ValueError(f"Invalid points in scoring[{index}]")
         jersey = event.get("jersey")
         roster = {int(number) for number in teams[side]["roster"]}
         if jersey is not None and roster and int(jersey) not in roster:
             raise ValueError(
-                f"Camisa {jersey} de scoring[{index}] fora do roster {side}"
+                f"Jersey {jersey} in scoring[{index}] is outside team {side}'s roster"
             )
     return payload
 

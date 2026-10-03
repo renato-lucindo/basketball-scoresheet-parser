@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "snapshots": [
+    {
+      "name": "m3-held-out-handwriting-model",
+      "corpus_sha256": "92f9e8d1124a2839b2029bc4e55d66309800629916c38e07d9031f2e4a726ba7",
+      "decisions": 186,
+      "accepted_error_rate": 0.0,
+      "automation_rate": 0.0,
+      "review_rate": 1.0,
+      "candidate_coverage": 0.6451612903225806,
+      "report": "fecaba-pilot-v1/handwriting-model-metrics.json"
+    },
+    {
+      "name": "m4-generalization-handwriting-model",
+      "corpus_sha256": "92f9e8d1124a2839b2029bc4e55d66309800629916c38e07d9031f2e4a726ba7",
+      "decisions": 612,
+      "accepted_error_rate": 0.0,
+      "automation_rate": 0.0,
+      "review_rate": 1.0,
+      "candidate_coverage": 0.5408496732026143,
+      "report": "fecaba-generalization-v1/handwriting-model-metrics.json"
+    }
+  ]
+}

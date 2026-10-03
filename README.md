@@ -21,6 +21,8 @@ The project prioritizes correctness over raw automation: uncertain observations 
 - Dataset and review workflows
 - Confidence-based validation
 
+The [human review workflow](docs/review-workflow.md) explains how candidates move through Label Studio and return as hash-validated reusable data.
+
 ## Technology Stack
 
 - Python 3.11+

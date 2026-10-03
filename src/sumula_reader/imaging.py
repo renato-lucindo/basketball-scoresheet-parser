@@ -98,9 +98,9 @@ def normalize_document(
     """Alinha a folha ao tamanho canonico do template.
 
     O caminho preferencial procura o maior quadrilatero que represente a
-    borda externa da sumula e aplica homografia. Em modo nao estrito, se a
-    borda nao puder ser localizada, apenas redimensiona a imagem e marca que
-    nao houve warp; isso e util no modo debug durante a calibracao.
+    outer scoresheet border and applies a homography. In non-strict mode, if
+    the border cannot be found, it resizes the image and records that no warp
+    occurred; this is useful while calibrating in debug mode.
     """
     rgb = _ensure_rgb(image)
     try:
@@ -255,7 +255,7 @@ def _cv2():
         import cv2  # type: ignore
     except ImportError as exc:
         raise VisionDependencyError(
-            "OpenCV nao esta instalado. Instale com: pip install -e .[vision]"
+            "OpenCV is not installed. Install it with: pip install -e .[vision]"
         ) from exc
     return cv2
 
