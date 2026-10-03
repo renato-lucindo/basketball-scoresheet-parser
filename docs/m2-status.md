@@ -48,4 +48,6 @@ Run the full suite from a clean development environment:
 python -m pytest -q
 ```
 
-The current M2 branch passes 115 tests plus 3 parameterized subtests.
+The generated representative FECABA fixture now exercises the real normalized-image pipeline from participation and scoring marks through reconciliation, core-field assessment, and JSON serialization. It produces an accepted result only when all 18 core-field entries are accepted.
+
+The current M2 branch passes 116 tests plus 3 parameterized subtests.
