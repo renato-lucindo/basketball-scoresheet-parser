@@ -37,7 +37,7 @@ def reconcile_team(team: TeamResult) -> TeamResult:
         if event.points <= 0 or event.shot_type is ShotType.AMBIGUOUS:
             event.status = DecisionStatus.REVIEW
             warnings.append(
-                f"Pontuacao {event.running_score}: tipo de cesta ambiguo"
+                f"Score {event.running_score}: ambiguous shot type"
             )
             continue
 
@@ -45,28 +45,30 @@ def reconcile_team(team: TeamResult) -> TeamResult:
         if delta != event.points:
             event.status = DecisionStatus.REVIEW
             warnings.append(
-                f"Pontuacao {event.running_score}: salto {delta} incompatível "
-                f"com evento de {event.points} ponto(s)"
+                f"Score {event.running_score}: jump of {delta} is incompatible "
+                f"with a {event.points}-point event"
             )
         previous_score = max(previous_score, event.running_score)
 
         if event.period is not None:
             period_points[event.period] += event.points
         else:
+            event.status = DecisionStatus.UNRESOLVED
             warnings.append(
-                f"Pontuacao {event.running_score}: periodo nao resolvido"
+                f"Score {event.running_score}: period is unresolved"
             )
 
         if event.jersey is None:
+            event.status = DecisionStatus.UNRESOLVED
             warnings.append(
-                f"Pontuacao {event.running_score}: camisa nao reconhecida"
+                f"Score {event.running_score}: jersey is unresolved"
             )
             continue
         player = players_by_jersey.get(event.jersey)
         if player is None:
             warnings.append(
-                f"Pontuacao {event.running_score}: camisa {event.jersey} "
-                "nao pertence ao roster informado"
+                f"Score {event.running_score}: jersey {event.jersey} "
+                "is not in the supplied roster"
             )
             event.status = DecisionStatus.REVIEW
             continue
@@ -110,8 +112,8 @@ def reconcile_team(team: TeamResult) -> TeamResult:
         )
         if not matches:
             warnings.append(
-                f"Q{indicator.period}: faltas coletivas derivadas ({derived}) "
-                f"divergem das caixas X ({indicator.x_count})"
+                f"Q{indicator.period}: derived team fouls ({derived}) "
+                f"differ from the X boxes ({indicator.x_count})"
             )
 
     validate_team(team)
@@ -126,7 +128,7 @@ def reconcile_document(document: DocumentResult) -> DocumentResult:
     for side, team in document.teams.items():
         reconcile_team(team)
         for warning in team.warnings:
-            warnings.append(f"Equipe {side}: {warning}")
+            warnings.append(f"Team {side}: {warning}")
 
     document.warnings = warnings
     document.status = (
