@@ -10,6 +10,8 @@ The first reproducible local corpus audit found:
 - 5 pilot ground-truth files;
 - 5 pilot ground-truth files with rosters, period totals, final score, and writer identity visually transcribed;
 - 1 pilot (the test document) with scoring events visually transcribed and period totals reconciled;
+- an explicit individual-foul review state that distinguishes a verified empty result from unfinished review;
+- a pending-observation area that preserves legible foul marks without admitting them as training labels;
 - all 5 pilots remain in `partial` review state while individual foul cells and the remaining scoring events are verified;
 - 4 anonymized writer groups recorded in the audit manifest;
 - deterministic pilot split: 2 train, 2 validation, 1 test;

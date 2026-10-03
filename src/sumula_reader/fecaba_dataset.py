@@ -97,6 +97,8 @@ def _empty_ground_truth(record: IngestedDocument) -> dict[str, object]:
                 "roster": [],
                 "team_fouls": dict(periods),
                 "individual_fouls": {},
+                "individual_fouls_reviewed": False,
+                "individual_foul_observations": {},
             }
             for side in ("A", "B")
         },
@@ -280,6 +282,62 @@ def _load_ground_truth(path: Path) -> dict[str, object]:
                 raise ValueError(
                     f"Falta atribuida a camisa {jersey_text} fora do roster {side}"
                 )
+        reviewed = team.get("individual_fouls_reviewed")
+        if reviewed not in {True, False}:
+            raise ValueError(
+                f"individual_fouls_reviewed for team {side} must be a boolean: {path}"
+            )
+        observations = team.get("individual_foul_observations", {})
+        if not isinstance(observations, dict):
+            raise ValueError(
+                f"individual_foul_observations for team {side} must be an object: {path}"
+            )
+        for jersey_text, entries in observations.items():
+            try:
+                jersey = int(jersey_text)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    f"Invalid observed-foul jersey for team {side}: {jersey_text!r}"
+                ) from exc
+            if roster and jersey not in roster:
+                raise ValueError(
+                    f"Observed foul assigned to jersey {jersey} outside roster {side}"
+                )
+            if not isinstance(entries, list):
+                raise ValueError(
+                    f"Observed fouls for team {side}, jersey {jersey} must be a list"
+                )
+            seen_slots: set[int] = set()
+            for entry in entries:
+                if not isinstance(entry, dict):
+                    raise ValueError(
+                        f"Observed foul for team {side}, jersey {jersey} must be an object"
+                    )
+                slot = entry.get("slot")
+                if not isinstance(slot, int) or slot < 1 or slot > 5:
+                    raise ValueError(
+                        f"Observed foul slot for team {side}, jersey {jersey} must be 1..5"
+                    )
+                if slot in seen_slots:
+                    raise ValueError(
+                        f"Duplicate observed foul slot for team {side}, jersey {jersey}: {slot}"
+                    )
+                seen_slots.add(slot)
+                symbol = entry.get("symbol")
+                if symbol is not None and (
+                    not isinstance(symbol, str) or not symbol.strip()
+                ):
+                    raise ValueError(
+                        f"Observed foul symbol for team {side}, jersey {jersey} must be text or null"
+                    )
+                candidates = entry.get("period_candidates")
+                if not isinstance(candidates, list) or not candidates or any(
+                    period not in {"Q1", "Q2", "Q3", "Q4"}
+                    for period in candidates
+                ):
+                    raise ValueError(
+                        f"Observed foul period_candidates for team {side}, jersey {jersey} are invalid"
+                    )
 
     for index, event in enumerate(scoring):
         if not isinstance(event, dict):

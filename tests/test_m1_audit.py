@@ -37,8 +37,20 @@ def _ground_truth(
             "method": "manual",
         },
         "teams": {
-            "A": {"roster": [4, 5], "team_fouls": periods, "individual_fouls": {}},
-            "B": {"roster": [6, 7], "team_fouls": periods, "individual_fouls": {}},
+            "A": {
+                "roster": [4, 5],
+                "team_fouls": periods,
+                "individual_fouls": {},
+                "individual_fouls_reviewed": True,
+                "individual_foul_observations": {},
+            },
+            "B": {
+                "roster": [6, 7],
+                "team_fouls": periods,
+                "individual_fouls": {},
+                "individual_fouls_reviewed": True,
+                "individual_foul_observations": {},
+            },
         },
         "scoring": [],
         "period_scores": {"A": periods, "B": periods},
@@ -131,6 +143,41 @@ class M1AuditTests(unittest.TestCase):
                 .splitlines()
             ]
             self.assertIn("reviewed_at_missing", manifest[0]["issues"])
+
+    def test_unreviewed_individual_fouls_keep_ground_truth_incomplete(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            document_id = self._dataset(root, reviewed=True)
+            path = root / "ground_truth" / f"{document_id}.json"
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            payload["teams"]["A"]["individual_fouls_reviewed"] = False
+            payload["teams"]["A"]["individual_foul_observations"] = {
+                "4": [
+                    {
+                        "slot": 1,
+                        "symbol": "P2",
+                        "period_candidates": ["Q1", "Q3"],
+                    }
+                ]
+            }
+            path.write_text(json.dumps(payload), encoding="utf-8")
+
+            report = audit_fecaba_dataset(root)
+            manifest = [
+                json.loads(line)
+                for line in (root / "evaluation" / "evaluation-manifest.jsonl")
+                .read_text(encoding="utf-8")
+                .splitlines()
+            ]
+
+            self.assertEqual(report["reviewed_ground_truth_documents"], 0)
+            self.assertIn(
+                "team_A_individual_fouls_unreviewed", manifest[0]["issues"]
+            )
+            self.assertIn(
+                "team_A_individual_foul_observations_pending",
+                manifest[0]["issues"],
+            )
 
     def test_explicit_split_stays_stable_when_writer_becomes_known(self):
         with tempfile.TemporaryDirectory() as temporary:

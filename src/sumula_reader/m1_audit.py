@@ -108,6 +108,13 @@ def _ground_truth_issues(
             for period in range(1, 5)
         ):
             issues.append(f"team_{side}_team_fouls_incomplete")
+        if team.get("individual_fouls_reviewed") is not True:
+            issues.append(f"team_{side}_individual_fouls_unreviewed")
+        observations = team.get("individual_foul_observations", {})
+        if not isinstance(observations, dict):
+            issues.append(f"team_{side}_individual_foul_observations_invalid")
+        elif any(entries for entries in observations.values()):
+            issues.append(f"team_{side}_individual_foul_observations_pending")
 
     period_scores = payload.get("period_scores")
     for side in ("A", "B"):

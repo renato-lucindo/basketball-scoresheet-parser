@@ -28,6 +28,8 @@ Valid values are `train`, `validation`, and `test`. Before this value is frozen,
 
 The reviewer must verify the source scoresheet itself. Parser predictions must not be copied into ground truth without visual verification.
 
+Each team also carries an explicit `individual_fouls_reviewed` boolean. An empty `individual_fouls` object is conclusive only when that value is `true`; otherwise it means review is still pending. Legible but unresolved marks may be recorded under `individual_foul_observations`, including their cell slot, observed symbol, and possible periods. These observations preserve manual progress but are excluded from training labels and keep the document incomplete until they are resolved or rejected.
+
 ## Audit the corpus
 
 Run:

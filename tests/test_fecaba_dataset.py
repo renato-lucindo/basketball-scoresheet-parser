@@ -50,6 +50,13 @@ class FecabaDatasetTests(unittest.TestCase):
                     base / "dataset" / "ground_truth" / f"{document_id}.json"
                 )
                 self.assertTrue(ground_truth.exists())
+                payload = json.loads(ground_truth.read_text(encoding="utf-8"))
+                self.assertFalse(
+                    payload["teams"]["A"]["individual_fouls_reviewed"]
+                )
+                self.assertEqual(
+                    payload["teams"]["A"]["individual_foul_observations"], {}
+                )
 
             build = build_fecaba_crops(base / "dataset")
             self.assertEqual(build["documents"], 2)
