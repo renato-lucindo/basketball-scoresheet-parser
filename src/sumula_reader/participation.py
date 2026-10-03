@@ -159,6 +159,8 @@ def extract_players(
                 starter=detection.starter,
                 participation_confidence=detection.participation_confidence,
                 starter_confidence=detection.starter_confidence,
+                participation_status=detection.status,
+                starter_status=detection.status,
             )
         )
     return players

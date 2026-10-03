@@ -142,6 +142,8 @@ class PlayerResult:
     starter: bool = False
     participation_confidence: float | None = None
     starter_confidence: float | None = None
+    participation_status: DecisionStatus = DecisionStatus.ACCEPTED
+    starter_status: DecisionStatus = DecisionStatus.ACCEPTED
     fouls: list[FoulEvent] = field(default_factory=list)
     foul_terminals: list[FoulTerminal] = field(default_factory=list)
     points: int = 0

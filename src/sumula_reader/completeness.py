@@ -40,6 +40,15 @@ def _team_fields(team: TeamResult) -> list[CoreFieldStatus]:
         for number in range(1, 5)
     )
     team_foul_periods = {indicator.period for indicator in team.team_fouls}
+    participation_status = _combined_status(
+        player.participation_status for player in team.players
+    )
+    starter_status = _combined_status(player.starter_status for player in team.players)
+    if not players_available:
+        participation_status = DecisionStatus.UNRESOLVED
+        starter_status = DecisionStatus.UNRESOLVED
+    elif len(team.starters) != 5 and starter_status is DecisionStatus.ACCEPTED:
+        starter_status = DecisionStatus.REVIEW
 
     scoring_status = _combined_status(event.status for event in team.scoring_events)
     if not team.scoring_events:
@@ -61,15 +70,15 @@ def _team_fields(team: TeamResult) -> list[CoreFieldStatus]:
     return [
         _field(f"teams.{side}.name", team.name is not None, "team name was not extracted"),
         _field(f"teams.{side}.players", players_available, "player roster is empty"),
-        _field(
-            f"teams.{side}.participation",
-            players_available,
-            "participation cannot be represented without players",
+        CoreFieldStatus(
+            path=f"teams.{side}.participation",
+            status=participation_status,
+            reason=(None if participation_status is DecisionStatus.ACCEPTED else "one or more participation marks are unavailable or require review"),
         ),
         CoreFieldStatus(
             path=f"teams.{side}.starters",
-            status=(DecisionStatus.ACCEPTED if len(team.starters) == 5 else DecisionStatus.REVIEW),
-            reason=(None if len(team.starters) == 5 else f"expected 5 starters, found {len(team.starters)}"),
+            status=starter_status,
+            reason=(None if starter_status is DecisionStatus.ACCEPTED else f"starter evidence requires review; detected {len(team.starters)} starters"),
         ),
         _field(
             f"teams.{side}.period_scoring",

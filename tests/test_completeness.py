@@ -75,6 +75,19 @@ class CompletenessTests(unittest.TestCase):
         self.assertEqual(states["teams.B.name"], DecisionStatus.UNRESOLVED)
         self.assertEqual(team.status, DecisionStatus.UNRESOLVED)
 
+    def test_ambiguous_participation_propagates_review(self):
+        players = [
+            PlayerResult(jersey=number, participated=True, starter=True)
+            for number in range(4, 9)
+        ]
+        players[0].participation_status = DecisionStatus.REVIEW
+        team = TeamResult(side="A", name="Team A", players=players)
+
+        document = assess_core_fields(DocumentResult(teams={"A": team}))
+        states = {field.path: field.status for field in document.core_fields}
+
+        self.assertEqual(states["teams.A.participation"], DecisionStatus.REVIEW)
+
 
 if __name__ == "__main__":
     unittest.main()
