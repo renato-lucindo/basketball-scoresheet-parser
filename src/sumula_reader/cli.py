@@ -16,11 +16,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="sumula-reader")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    sub.add_parser("schema", help="Mostra o esqueleto JSON do MVP Core")
+    sub.add_parser("schema", help="Print the current structured output skeleton")
 
     debug = sub.add_parser(
         "debug",
-        help="Normaliza uma sumula e salva overlay/crops das regioes do template",
+        help="Normalize a scoresheet and save template overlays and crops",
     )
     debug.add_argument("input", type=Path)
     debug.add_argument("--output", type=Path, default=Path("debug"))
@@ -33,12 +33,12 @@ def build_parser() -> argparse.ArgumentParser:
     debug.add_argument(
         "--strict-alignment",
         action="store_true",
-        help="Falha se a borda externa da sumula nao puder ser detectada",
+        help="Fail when the outer scoresheet border cannot be detected",
     )
 
     analyze = sub.add_parser(
         "analyze",
-        help="Executa o pipeline atual do MVP e retorna JSON estruturado",
+        help="Run the FECABA pipeline and return structured JSON",
     )
     analyze.add_argument("input", type=Path)
     analyze.add_argument("--roster-a", required=True)
@@ -59,7 +59,7 @@ def build_parser() -> argparse.ArgumentParser:
     analyze.add_argument(
         "--handwriting-model-dir",
         type=Path,
-        help="Diretorio contendo jersey.pt e/ou foul.pt",
+        help="Directory containing jersey.pt and/or foul.pt",
     )
     analyze.add_argument("--output", type=Path)
     analyze.add_argument(
@@ -71,16 +71,16 @@ def build_parser() -> argparse.ArgumentParser:
     analyze.add_argument(
         "--jev",
         action="store_true",
-        help="Usa Jev/TypeSafe apenas para decisoes visuais ambiguas",
+        help="Use Jev/TypeSafe only for ambiguous visual decisions",
     )
     analyze.add_argument(
         "--jev-model",
-        help="Modelo TypeSafe (padrao: jev-latest ou TYPESAFE_MODEL)",
+        help="TypeSafe model (default: jev-latest or TYPESAFE_MODEL)",
     )
 
     train_digits = sub.add_parser(
         "train-digits",
-        help="Treina o baseline de digitos manuscritos no EMNIST",
+        help="Train the handwritten-digit baseline on EMNIST",
     )
     train_digits.add_argument(
         "--data-dir",
@@ -101,7 +101,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     dataset_ingest = sub.add_parser(
         "dataset-ingest",
-        help="Extrai, cataloga e valida sumulas de um arquivo ZIP",
+        help="Extract, catalogue, and validate scoresheets from a ZIP archive",
     )
     dataset_ingest.add_argument("archive", type=Path)
     dataset_ingest.add_argument(
@@ -114,7 +114,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     dataset_build = sub.add_parser(
         "dataset-build",
-        help="Gera crops e manifest a partir do catalogo e dos gabaritos",
+        help="Build crops and a manifest from the catalogue and ground truth",
     )
     dataset_build.add_argument(
         "--dataset-root",
@@ -126,7 +126,7 @@ def build_parser() -> argparse.ArgumentParser:
     dataset_build.add_argument(
         "--all-documents",
         action="store_true",
-        help="Processa todos os gabaritos em vez de apenas o lote piloto",
+        help="Process all ground truth instead of only the pilot batch",
     )
 
     dataset_audit = sub.add_parser(
@@ -174,7 +174,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     review_prepare = sub.add_parser(
         "dataset-review-prepare",
-        help="Prepara tarefas locais do Label Studio para revisao assistida",
+        help="Prepare local Label Studio tasks for assisted review",
     )
     review_prepare.add_argument(
         "--dataset-root",
@@ -191,12 +191,12 @@ def build_parser() -> argparse.ArgumentParser:
     review_prepare.add_argument(
         "--audit-only",
         action="store_true",
-        help="Prepara somente a amostra de 10%% marcada para segunda revisao",
+        help="Prepare only the 10%% sample marked for a second review",
     )
 
     review_import = sub.add_parser(
         "dataset-review-import",
-        help="Importa um export JSON do Label Studio e valida a revisao",
+        help="Import a Label Studio JSON export and validate the review",
     )
     review_import.add_argument("export", type=Path)
     review_import.add_argument(
@@ -213,12 +213,12 @@ def build_parser() -> argparse.ArgumentParser:
     review_import.add_argument(
         "--audit-only",
         action="store_true",
-        help="Importa a segunda revisao da amostra de auditoria",
+        help="Import the audit sample's second review",
     )
 
     review_status_parser = sub.add_parser(
         "dataset-review-status",
-        help="Mostra o progresso da revisao assistida",
+        help="Show assisted-review progress",
     )
     review_status_parser.add_argument(
         "--dataset-root",
@@ -227,8 +227,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     for name, help_text, default_output in (
-        ("train-jerseys", "Treina o reconhecedor de camisas", "models/handwriting/jersey.pt"),
-        ("train-fouls", "Treina o reconhecedor de simbolos de falta", "models/handwriting/foul.pt"),
+        ("train-jerseys", "Train the jersey-number recognizer", "models/handwriting/jersey.pt"),
+        ("train-fouls", "Train the foul-symbol recognizer", "models/handwriting/foul.pt"),
     ):
         training = sub.add_parser(name, help=help_text)
         training.add_argument(
@@ -507,17 +507,17 @@ def _parse_roster(value: str) -> list[int]:
         try:
             number = int(item)
         except ValueError as exc:
-            raise SystemExit(f"Numero de camisa invalido: {item}") from exc
+            raise SystemExit(f"Invalid jersey number: {item}") from exc
         if not 0 <= number <= 99:
-            raise SystemExit(f"Numero de camisa fora do intervalo 0..99: {number}")
+            raise SystemExit(f"Jersey number outside the 0..99 range: {number}")
         if number in seen:
-            raise SystemExit(f"Numero de camisa duplicado: {number}")
+            raise SystemExit(f"Duplicate jersey number: {number}")
         seen.add(number)
         numbers.append(number)
     if not numbers:
-        raise SystemExit("O roster nao pode ser vazio")
+        raise SystemExit("The roster cannot be empty")
     if len(numbers) > 12:
-        raise SystemExit("O template FECABA suporta no maximo 12 jogadores")
+        raise SystemExit("The FECABA template supports at most 12 players")
     return numbers
 
 
