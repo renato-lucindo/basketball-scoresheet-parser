@@ -70,7 +70,7 @@ def _render_pdf(path: Path, *, dpi: int) -> np.ndarray:
             )
             if completed.returncode != 0:
                 raise RuntimeError(
-                    "Falha ao renderizar PDF com pdftoppm: "
+                    "Failed to render PDF with pdftoppm: "
                     + completed.stderr.strip()
                 )
             with Image.open(output_base.with_suffix(".png")) as image:
@@ -121,7 +121,7 @@ def normalize_document(
                 method="pillow_quad",
             )
         if strict:
-            raise ValueError("Nao foi possivel localizar a borda da sumula")
+            raise ValueError("Could not locate the scoresheet border")
         return _resize_fallback(rgb, template)
 
     corners = _find_document_corners(rgb, cv2)
@@ -141,7 +141,7 @@ def normalize_document(
                 method="pillow_quad",
             )
         if strict:
-            raise ValueError("Nao foi possivel localizar a borda da sumula")
+            raise ValueError("Could not locate the scoresheet border")
         resized = cv2.resize(
             rgb,
             (template.canonical_width, template.canonical_height),
@@ -283,7 +283,7 @@ def _find_document_corners(image: np.ndarray, cv2) -> np.ndarray | None:
 
 
 def _find_document_corners_numpy(image: np.ndarray) -> np.ndarray | None:
-    """Localiza as quatro bordas externas sem depender de OpenCV.
+    """Locate the four outer borders without depending on OpenCV.
 
     A folha FECABA possui uma moldura escura longa. Para cada faixa esperada
     (esquerda, direita, topo e base), coletamos a posicao do primeiro pixel

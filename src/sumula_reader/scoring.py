@@ -222,7 +222,7 @@ def detect_jersey_circle(
     angular_coverage = len(np.unique(bins)) / 24.0
 
     # Um numero simples pode tocar parte do anel, mas raramente ocupa a
-    # maioria dos setores angulares. Círculos imperfeitos continuam cobrindo
+    # most angular sectors. Imperfect circles still cover
     # grande parte dos setores.
     detected = angular_coverage >= 0.54
     confidence = min(1.0, max(0.0, (angular_coverage - 0.28) / 0.50))
@@ -238,7 +238,7 @@ def detect_scoring_grid(
     *,
     grid: ScoringGridSpec = DEFAULT_GRID,
 ) -> ScoringGridDetection:
-    """Localiza a grade impressa da contagem de pontos.
+    """Locate the printed running-score grid.
 
     A folha real pode sofrer pequenas distorcoes mesmo depois da homografia.
     Por isso as celulas de pontuacao sao ancoradas nas linhas pretas do
@@ -447,7 +447,7 @@ def extract_scoring_events(
 def select_plausible_scoring_sequences(
     events: list[ScoringEvent],
 ) -> list[ScoringEvent]:
-    """Usa a progressao 1..160 como validacao, sem reclassificar a marca."""
+    """Use the 1..160 progression for validation without reclassifying marks."""
     selected: list[ScoringEvent] = []
     for team in ("A", "B"):
         candidates = sorted(
@@ -469,9 +469,9 @@ def select_plausible_scoring_sequences(
 def assign_periods_from_color_runs(events: list[ScoringEvent]) -> None:
     """Atribui Q1..Q4 pelos blocos cronologicos de cor de cada equipe.
 
-    A contagem corrente de cada equipe e monotona, logo a sequencia de
+    Each team's running score is monotonic, so the sequence of
     anotacoes daquela equipe tambem e cronologica. A cada troca de cor inicia
-    um novo periodo. Eventos com cor desconhecida ficam sem periodo.
+    a new period. Events with an unknown color remain without a period.
     """
     for team in ("A", "B"):
         team_events = sorted(
@@ -668,7 +668,7 @@ def _complete_vertical_lattice(
 
     As linhas verticais impressas sao muito persistentes, mas bordas podem
     desaparecer no recorte e uma divisoria pode ficar fraca por rasura. A
-    reconstrucao so acontece quando as demais linhas fornecem ancoras reais e
+    reconstruction occurs only when the other rows provide real anchors and
     o espacamento resultante continua compativel com a grade.
     """
     if len(centers) < expected - 2 or len(centers) > expected or len(centers) < 2:
@@ -833,5 +833,5 @@ def _contiguous_groups(values: np.ndarray) -> list[tuple[int, int]]:
 def _ensure_rgb(image: np.ndarray) -> np.ndarray:
     array = np.asarray(image)
     if array.ndim != 3 or array.shape[2] < 3:
-        raise ValueError("A imagem deve ter formato HxWx3")
+        raise ValueError("Image must have shape HxWx3")
     return array[..., :3].astype(np.uint8, copy=False)

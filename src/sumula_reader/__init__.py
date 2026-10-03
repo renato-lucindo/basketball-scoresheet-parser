@@ -115,4 +115,4 @@ __all__ = [
     "extract_period_score_candidates",
 ]
 
-__version__ = "0.1.0"
+__version__ = "1.0.0"

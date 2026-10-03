@@ -65,7 +65,7 @@ class ScoringTests(unittest.TestCase):
         lines = [3, 71, 132, 194, 272, 350, 412, 473, 551, 630, 711, 794, 874, 953, 1037, 1121, 1203]
         for x in lines:
             dark[:, max(0, x - 1) : min(width, x + 2)] = True
-        # Fragmenta uma linha em duas colunas verticais proximas; ambas devem
+        # Split one line into two nearby vertical columns; both must
         # continuar representando uma unica divisoria da grade.
         dark[:, 69:75] = False
         dark[:, 68:70] = True
@@ -247,7 +247,7 @@ class ScoringTests(unittest.TestCase):
                 table_box[1] + bottom,
             )
 
-        # A chega a 2 com cesta de dois e depois a 3 com lance livre.
+        # Team A reaches 2 with a two-point basket, then 3 with a free throw.
         a2 = box_on_page(cells[("A", 2)].score_rect)
         draw.line(
             (a2[0] + 3, a2[3] - 3, a2[2] - 3, a2[1] + 3),

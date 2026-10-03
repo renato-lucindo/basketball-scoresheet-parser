@@ -1,6 +1,6 @@
 # Structured Output Contract
 
-The parser returns a JSON-serializable `DocumentResult`. Schema version `0.1` is the active pre-v1.0 contract.
+The parser returns a JSON-serializable `DocumentResult`. Schema version `1.0` is the stable FECABA v1.0 contract.
 
 ## Decision states
 
@@ -16,7 +16,7 @@ The document status reflects the most severe core-field state. An unresolved cor
 
 ```json
 {
-  "schema_version": "0.1",
+  "schema_version": "1.0",
   "metadata": {},
   "teams": {
     "A": {},

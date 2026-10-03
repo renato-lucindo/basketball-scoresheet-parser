@@ -768,7 +768,7 @@ def _parse_crop_annotation(results: list[dict[str, Any]], *, crop_id: str) -> di
         if result.get("type") == "rectanglelabels" and result.get("from_name") == "bbox"
     ]
     if len(boxes) != 1:
-        raise ValueError(f"Crop {crop_id} deve conter exatamente uma caixa")
+        raise ValueError(f"Crop {crop_id} must contain exactly one bounding box")
     box = boxes[0]
     region_id = str(box.get("id") or "")
     bbox = _normalized_bbox_from_result(box)
@@ -970,7 +970,7 @@ def _normalized_bbox_from_result(result: dict[str, Any]) -> tuple[float, float, 
 def _validate_normalized_bbox(rect: tuple[float, float, float, float]) -> None:
     x, y, width, height = rect
     if width <= 0 or height <= 0:
-        raise ValueError("Caixa deve possuir largura e altura positivas")
+        raise ValueError("Bounding box width and height must be positive")
     if x < 0 or y < 0 or x + width > 1.000001 or y + height > 1.000001:
         raise ValueError("Caixa ultrapassa os limites da imagem")
 

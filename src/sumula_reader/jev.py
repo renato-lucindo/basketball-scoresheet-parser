@@ -29,7 +29,7 @@ class TypeSafeConfig(BaseModel):
         api_key = os.getenv("TYPESAFE_API_KEY", "").strip()
         if not api_key:
             raise TypeSafeAPIError(
-                "TYPESAFE_API_KEY nao foi definida no ambiente"
+                "TYPESAFE_API_KEY is not defined in the environment"
             )
         return cls(
             api_key=api_key,
@@ -82,7 +82,7 @@ class SystemOneResponse(BaseModel):
             payload = self.answers[name]
         except KeyError as exc:
             raise TypeSafeAPIError(
-                f"Resposta TypeSafe nao contem a pergunta {name!r}"
+                f"TypeSafe response does not contain question {name!r}"
             ) from exc
         return ChoiceAnswer.model_validate(payload)
 
@@ -107,7 +107,7 @@ class TypeSafeClient:
             return ModelListResponse.model_validate(payload).models
         except ValidationError as exc:
             raise TypeSafeAPIError(
-                "TypeSafe retornou uma lista de modelos em formato inesperado"
+                "TypeSafe returned a model list in an unexpected format"
             ) from exc
 
     def choose(
@@ -139,7 +139,7 @@ class TypeSafeClient:
             return response.choice_answer(name)
         except ValidationError as exc:
             raise TypeSafeAPIError(
-                "TypeSafe retornou uma resposta System One em formato inesperado"
+                "TypeSafe returned a System One response in an unexpected format"
             ) from exc
 
     def _request_json(
@@ -163,42 +163,42 @@ class TypeSafeClient:
                 timeout=self.config.timeout_seconds,
             )
         except requests.RequestException as exc:
-            raise TypeSafeAPIError(f"Falha de rede ao chamar TypeSafe: {exc}") from exc
+            raise TypeSafeAPIError(f"Network failure while calling TypeSafe: {exc}") from exc
 
         if not 200 <= response.status_code < 300:
             body = response.text.strip()
             if len(body) > 500:
                 body = body[:500] + "..."
             raise TypeSafeAPIError(
-                f"TypeSafe retornou HTTP {response.status_code}: {body}"
+                f"TypeSafe returned HTTP {response.status_code}: {body}"
             )
 
         try:
             payload = response.json()
         except ValueError as exc:
-            raise TypeSafeAPIError("TypeSafe retornou JSON invalido") from exc
+            raise TypeSafeAPIError("TypeSafe returned invalid JSON") from exc
         if not isinstance(payload, dict):
-            raise TypeSafeAPIError("TypeSafe retornou payload inesperado")
+            raise TypeSafeAPIError("TypeSafe returned an unexpected payload")
         return payload
 
 
 class JevDecisionEngine:
     TEAM_FOUL_CRITERIA = {
-        "x": "Ha um X que representa uma falta coletiva registrada nesta caixa.",
+        "x": "An X represents a recorded team foul in this box.",
         "unused": (
-            "A caixa foi inutilizada/fechada por tracos horizontais e nao "
-            "representa uma nova falta."
+            "The box was closed with horizontal strokes and does not represent "
+            "a new foul."
         ),
-        "ambiguous": "A evidencia nao permite distinguir com seguranca X e fechamento.",
+        "ambiguous": "The evidence cannot safely distinguish an X from a closure.",
     }
     SCORING_CRITERIA = {
-        "free_throw": "A marca representa um lance livre convertido, valendo 1 ponto.",
-        "two_point": "A marca representa uma cesta de 2 pontos.",
-        "three_point": "A marca representa uma cesta de 3 pontos.",
+        "free_throw": "The mark represents a made free throw worth 1 point.",
+        "two_point": "The mark represents a 2-point basket.",
+        "three_point": "The mark represents a 3-point basket.",
         "closure_stroke": (
-            "O traco pertence ao fechamento/encerramento da contagem e nao e uma cesta."
+            "The stroke closes the running-score grid and is not a basket."
         ),
-        "ambiguous": "A evidencia nao permite classificar a marca com seguranca.",
+        "ambiguous": "The evidence does not support a safe mark classification.",
     }
 
     def __init__(self, client: TypeSafeClient) -> None:
@@ -218,7 +218,7 @@ class JevDecisionEngine:
         if not api_key:
             api_key = getpass.getpass("TypeSafe API key: ").strip()
         if not api_key:
-            raise TypeSafeAPIError("Chave TypeSafe nao informada")
+            raise TypeSafeAPIError("TypeSafe API key was not provided")
         selected_model = (
             model
             or os.getenv("TYPESAFE_MODEL", "").strip()
@@ -249,8 +249,8 @@ class JevDecisionEngine:
             state=state,
             name="team_foul_kind",
             instructions=(
-                "Classifique a caixa usando somente as evidencias fornecidas. "
-                "Marcas fracas ou contraditorias devem permanecer ambiguous."
+                "Classify the box using only the supplied evidence. Weak or "
+                "contradictory marks must remain ambiguous."
             ),
             criteria=self.TEAM_FOUL_CRITERIA,
         )
@@ -274,8 +274,8 @@ class JevDecisionEngine:
             state=state,
             name="scoring_kind",
             instructions=(
-                "Classifique a marca da sumula usando somente as evidencias "
-                "fornecidas e respeite a semantica da contagem corrente."
+                "Classify the scoresheet mark using only the supplied evidence "
+                "and the running-score semantics."
             ),
             criteria=self.SCORING_CRITERIA,
         )
@@ -286,7 +286,7 @@ def main() -> None:
     if not api_key:
         api_key = getpass.getpass("TypeSafe API key: ").strip()
     if not api_key:
-        raise SystemExit("Chave TypeSafe nao informada")
+        raise SystemExit("TypeSafe API key was not provided")
 
     client = TypeSafeClient(TypeSafeConfig(api_key=api_key))
     for model in client.list_models():

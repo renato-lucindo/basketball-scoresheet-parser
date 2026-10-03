@@ -217,11 +217,10 @@ def classify_team_foul_cell(
     horizontal_coverage = float(row_coverage.max())
     strong_horizontal_rows = int(np.count_nonzero(row_coverage >= 0.65))
 
-    # As caixas nao utilizadas sao fechadas com dois tracos horizontais.
-    # Em sumulas reais esses tracos podem ser grossos ou cobrir uma rasura/X
-    # anterior, o que torna a nuvem de pixels quase isotropica e engana o PCA.
-    # Uma cobertura horizontal longa em varias linhas e, nesse caso, evidencia
-    # mais forte do que a elongacao global.
+    # Unused boxes are closed with two horizontal strokes. On real scoresheets
+    # these strokes may be thick or cover an earlier erasure/X, making the
+    # pixel cloud almost isotropic and misleading PCA. Long horizontal
+    # coverage across multiple rows is stronger evidence than global elongation.
     if horizontal_coverage >= 0.75 and strong_horizontal_rows >= 2:
         confidence = min(1.0, 0.55 + horizontal_coverage * 0.45)
         return TeamFoulCellObservation(
@@ -328,7 +327,7 @@ def _as_rgb(image: np.ndarray) -> np.ndarray:
     if image.ndim == 2:
         return np.repeat(image[..., None], 3, axis=2)
     if image.ndim != 3 or image.shape[2] < 3:
-        raise ValueError("Imagem deve ter formato HxW, HxWx3 ou HxWx4")
+        raise ValueError("Image must have shape HxW, HxWx3, or HxWx4")
     return image[..., :3]
 
 
@@ -485,7 +484,7 @@ def detect_player_foul_grid(
     """Detecta as 5 colunas e as 12 linhas reais de faltas de jogadores."""
     normalized_side = side.upper()
     if normalized_side not in {"A", "B"}:
-        raise ValueError("side deve ser A ou B")
+        raise ValueError("side must be A or B")
     rgb = _as_rgb(block).astype(np.float32, copy=False)
     gray = 0.299 * rgb[..., 0] + 0.587 * rgb[..., 1] + 0.114 * rgb[..., 2]
     dark = gray < 145
@@ -579,7 +578,7 @@ def extract_team_foul_indicators(
 ) -> list[TeamFoulIndicator]:
     side = team.upper()
     if side not in {"A", "B"}:
-        raise ValueError("team deve ser A ou B")
+        raise ValueError("team must be A or B")
 
     region_name = f"team_{side.lower()}_team_fouls"
     block = crop_region(normalized_image, template.region(region_name))
@@ -656,13 +655,13 @@ def extract_team_foul_indicators(
 def _reconcile_team_foul_cells(
     cells: list[TeamFoulCellObservation],
 ) -> tuple[int, bool]:
-    """Aplica a semantica sequencial das quatro caixas de falta coletiva.
+    """Apply the sequential meaning of the four team-foul boxes.
 
-    Uma marca na caixa N significa que a equipe chegou pelo menos a N faltas.
-    Assim, uma leitura fraca/ausente antes de um X posterior nao reduz a
-    contagem; o periodo e marcado para revisao porque pode haver rasura ou
-    erro de preenchimento. Marcas ambiguas apos o ultimo X tambem exigem
-    revisao, pois podem representar a proxima falta ou o fechamento da linha.
+    A mark in box N means the team reached at least N fouls. A weak or absent
+    reading before a later X therefore does not reduce the count. The period
+    is marked for review because the sheet may contain an erasure or entry
+    error. Ambiguous marks after the last X also require review because they
+    may represent the next foul or the row closure.
     """
     x_slots = [
         index
@@ -1028,7 +1027,7 @@ def extract_player_foul_data(
 ) -> tuple[list[FoulEvent], list[FoulTerminal]]:
     side = team.upper()
     if side not in {"A", "B"}:
-        raise ValueError("team deve ser A ou B")
+        raise ValueError("team must be A or B")
     if len(jerseys) > grid.roster_rows:
         raise ValueError(
             f"O template suporta no maximo {grid.roster_rows} linhas de jogadores"
@@ -1096,7 +1095,7 @@ def _player_foul_data_top(
     """
     normalized_side = side.upper()
     if normalized_side not in {"A", "B"}:
-        raise ValueError("side deve ser A ou B")
+        raise ValueError("side must be A or B")
     fraction = (
         grid.team_a_header_fraction
         if normalized_side == "A"
@@ -1113,7 +1112,7 @@ def _player_foul_data_bottom(
 ) -> int:
     normalized_side = side.upper()
     if normalized_side not in {"A", "B"}:
-        raise ValueError("side deve ser A ou B")
+        raise ValueError("side must be A or B")
     if normalized_side == "A":
         return block.shape[0]
     return round(block.shape[0] * (1.0 - grid.team_b_footer_fraction))

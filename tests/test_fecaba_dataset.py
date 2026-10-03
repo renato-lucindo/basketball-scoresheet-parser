@@ -91,7 +91,7 @@ class FecabaDatasetTests(unittest.TestCase):
             with zipfile.ZipFile(archive, "w") as zipped:
                 zipped.writestr("../fora.jpeg", _jpeg_scoresheet())
 
-            with self.assertRaisesRegex(ValueError, "inseguro"):
+            with self.assertRaisesRegex(ValueError, "Unsafe"):
                 ingest_scoresheet_archive(archive, output_root=base / "dataset")
 
 

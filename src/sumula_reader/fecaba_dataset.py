@@ -69,7 +69,7 @@ def _slug(value: str) -> str:
 def _safe_archive_parts(name: str) -> tuple[str, str]:
     path = PurePosixPath(name.replace("\\", "/"))
     if path.is_absolute() or ".." in path.parts or len(path.parts) < 2:
-        raise ValueError(f"Caminho inseguro ou sem categoria no ZIP: {name!r}")
+        raise ValueError(f"Unsafe or uncategorized path in ZIP: {name!r}")
     return path.parts[-2], path.name
 
 
@@ -253,34 +253,34 @@ def _load_ground_truth(path: Path) -> dict[str, object]:
     except (OSError, json.JSONDecodeError) as exc:
         raise ValueError(f"Invalid ground truth in {path}: {exc}") from exc
     if not isinstance(payload, dict):
-        raise ValueError(f"Gabarito deve ser um objeto JSON: {path}")
+        raise ValueError(f"Ground truth must be a JSON object: {path}")
     teams = payload.get("teams")
     if not isinstance(teams, dict) or set(teams) != {"A", "B"}:
-        raise ValueError(f"Gabarito deve conter exatamente as equipes A e B: {path}")
+        raise ValueError(f"Ground truth must contain exactly teams A and B: {path}")
     scoring = payload.get("scoring")
     if not isinstance(scoring, list):
-        raise ValueError(f"Campo scoring deve ser uma lista: {path}")
+        raise ValueError(f"The scoring field must be a list: {path}")
     evaluation_split = payload.get("evaluation_split")
     if evaluation_split not in {None, "train", "validation", "test"}:
         raise ValueError(
-            f"evaluation_split deve ser train, validation, test ou null: {path}"
+            f"evaluation_split must be train, validation, test, or null: {path}"
         )
 
     for side in ("A", "B"):
         team = teams[side]
         if not isinstance(team, dict) or not isinstance(team.get("roster"), list):
-            raise ValueError(f"Roster da equipe {side} deve ser uma lista: {path}")
+            raise ValueError(f"Team {side} roster must be a list: {path}")
         roster = {int(number) for number in team["roster"]}
         for jersey in roster:
             if jersey < 0 or jersey > 99:
                 raise ValueError(f"Jersey number outside 0..99 for team {side}: {jersey}")
         individual = team.get("individual_fouls")
         if not isinstance(individual, dict):
-            raise ValueError(f"individual_fouls da equipe {side} deve ser objeto")
+            raise ValueError(f"Team {side} individual_fouls must be an object")
         for jersey_text in individual:
             if roster and int(jersey_text) not in roster:
                 raise ValueError(
-                    f"Falta atribuida a camisa {jersey_text} fora do roster {side}"
+                    f"Foul assigned to jersey {jersey_text} outside team {side}'s roster"
                 )
         reviewed = team.get("individual_fouls_reviewed")
         if reviewed not in {True, False}:
@@ -359,10 +359,10 @@ def _load_ground_truth(path: Path) -> dict[str, object]:
 
     for index, event in enumerate(scoring):
         if not isinstance(event, dict):
-            raise ValueError(f"Evento scoring[{index}] deve ser objeto")
+            raise ValueError(f"scoring[{index}] must be an object")
         side = event.get("team")
         if side not in {"A", "B"}:
-            raise ValueError(f"Equipe invalida em scoring[{index}]")
+            raise ValueError(f"Invalid team in scoring[{index}]")
         points = event.get("points")
         if points not in {1, 2, 3}:
             raise ValueError(f"Invalid points in scoring[{index}]")
