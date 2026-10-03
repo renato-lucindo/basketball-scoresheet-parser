@@ -1,10 +1,11 @@
 import unittest
+import tempfile
+from pathlib import Path
 
-import numpy as np
 from PIL import Image, ImageDraw
 
 from sumula_reader.models import DecisionStatus
-from sumula_reader.pipeline import AnalysisContext, analyze_image
+from sumula_reader.pipeline import AnalysisContext, analyze_path
 from sumula_reader.recognition import RecognitionCandidate, RecognitionResult
 from sumula_reader.scoring import iter_scoring_cells
 from sumula_reader.template import FECABA_V1
@@ -33,11 +34,14 @@ class EndToEndTests(unittest.TestCase):
             final_scores={"A": 3, "B": 0},
         )
 
-        result = analyze_image(
-            np.asarray(page),
-            context=context,
-            handwriting=_JerseyFourRecognizer(),
-        )
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "representative-fecaba.png"
+            page.save(path)
+            result = analyze_path(
+                path,
+                context=context,
+                handwriting=_JerseyFourRecognizer(),
+            )
 
         payload = result.to_dict()
         self.assertEqual(payload["schema_version"], "0.1")

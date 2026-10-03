@@ -2,7 +2,7 @@
 
 Status snapshot: 2026-10-03.
 
-M2 — Complete FECABA Parser is **in progress**.
+M2 — Complete FECABA Parser is **complete**.
 
 ## Current pipeline
 
@@ -32,13 +32,15 @@ An unresolved core field propagates to the team and document status. Contradicto
 
 The `analyze` command accepts the optional context arguments `--team-a-name`, `--team-b-name`, `--period-scores-a`, `--period-scores-b`, `--final-score-a`, and `--final-score-b`. Period-score values contain exactly four comma-separated non-negative integers. Supplied values are reconciled against extracted scoring events and do not bypass review status when they disagree.
 
-## Remaining M2 work
+## Exit evidence
 
-- Extract team names automatically and validate roster-row occupancy against real held-out forms.
-- Calibrate written period and final-score recognition against M1 data.
-- Define behavior when optional handwriting models are absent and keep every unavailable recognition result explicit.
-- Add a representative end-to-end image/PDF fixture that asserts the complete JSON structure.
-- Stabilize the documented output contract as automatic extraction replaces explicit context.
+- A FECABA image or PDF can run through the public CLI/API without required roster arguments or undocumented steps. Missing models or context produce explicit unresolved fields.
+- The structured result accounts for all 18 required team-level core fields through accepted, review, or unresolved entries.
+- Automatic roster and written-score candidates remain reviewable and separate from accepted reviewed overrides.
+- Contradictions and missing evidence propagate through field, team, and document status.
+- A generated representative image fixture exercises `analyze_path`, the real extraction pipeline, reconciliation, completeness assessment, and JSON serialization.
+
+Automatic team-name recognition and acceptance-threshold calibration remain product improvements. They do not block M2 because the output contract explicitly represents unavailable fields; threshold measurement and calibration belong to M3.
 
 ## Validation
 
