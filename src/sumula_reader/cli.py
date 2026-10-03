@@ -138,6 +138,22 @@ def build_parser() -> argparse.ArgumentParser:
         default=Path("datasets/fecaba"),
     )
     dataset_baseline.add_argument("--output-dir", type=Path)
+
+    dataset_predictions = sub.add_parser(
+        "dataset-predict-baseline",
+        help="Generates deterministic parser predictions for reviewed M1 test data",
+    )
+    dataset_predictions.add_argument(
+        "--dataset-root",
+        type=Path,
+        default=Path("datasets/fecaba"),
+    )
+    dataset_predictions.add_argument(
+        "--output",
+        type=Path,
+        default=Path("datasets/fecaba/evaluation/baseline-predictions.jsonl"),
+    )
+    dataset_predictions.add_argument("--dpi", type=int, default=300)
     dataset_baseline.add_argument(
         "--max-accepted-error-rate", type=float, default=0.01
     )
@@ -300,6 +316,17 @@ def main() -> None:
         result = audit_fecaba_dataset(
             args.dataset_root,
             output_dir=args.output_dir,
+        )
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return
+
+    if args.command == "dataset-predict-baseline":
+        from .m1_audit import generate_fecaba_baseline_predictions
+
+        result = generate_fecaba_baseline_predictions(
+            args.dataset_root,
+            output=args.output,
+            dpi=args.dpi,
         )
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return

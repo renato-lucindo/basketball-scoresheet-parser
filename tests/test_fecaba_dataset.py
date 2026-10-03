@@ -8,6 +8,7 @@ import zipfile
 from PIL import Image, ImageDraw
 
 from sumula_reader.fecaba_dataset import (
+    _foul_labels,
     build_fecaba_crops,
     ingest_scoresheet_archive,
 )
@@ -23,6 +24,27 @@ def _jpeg_scoresheet() -> bytes:
 
 
 class FecabaDatasetTests(unittest.TestCase):
+    def test_verified_foul_observation_keeps_its_cell_slot(self):
+        ground_truth = {
+            "teams": {
+                "A": {
+                    "individual_fouls": {},
+                    "individual_foul_observations": {
+                        "5": [
+                            {
+                                "slot": 3,
+                                "symbol": "P2",
+                                "period_candidates": ["Q3"],
+                                "review_state": "verified",
+                            }
+                        ]
+                    },
+                }
+            }
+        }
+
+        self.assertEqual(_foul_labels(ground_truth, "A", 5), {3: ("Q3", "P2")})
+
     def test_ingest_catalogs_documents_and_creates_pilot_ground_truth(self):
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary)

@@ -338,6 +338,24 @@ def _load_ground_truth(path: Path) -> dict[str, object]:
                     raise ValueError(
                         f"Observed foul period_candidates for team {side}, jersey {jersey} are invalid"
                     )
+                review_state = entry.get("review_state", "pending")
+                if review_state not in {"pending", "verified", "unresolved"}:
+                    raise ValueError(
+                        f"Observed foul review_state for team {side}, jersey {jersey} is invalid"
+                    )
+                if review_state == "verified" and (
+                    symbol is None or len(candidates) != 1
+                ):
+                    raise ValueError(
+                        f"Verified foul observation for team {side}, jersey {jersey} requires a symbol and one period"
+                    )
+                if review_state == "unresolved" and (
+                    not isinstance(entry.get("note"), str)
+                    or not entry["note"].strip()
+                ):
+                    raise ValueError(
+                        f"Unresolved foul observation for team {side}, jersey {jersey} requires a note"
+                    )
 
     for index, event in enumerate(scoring):
         if not isinstance(event, dict):
@@ -511,14 +529,35 @@ def _foul_labels(
     ground_truth: dict[str, object],
     side: str,
     jersey: int,
-) -> list[tuple[str, str]]:
+) -> dict[int, tuple[str, str]]:
     team = ground_truth["teams"][side]
     periods = team.get("individual_fouls", {}).get(str(jersey), {})
-    labels: list[tuple[str, str]] = []
+    labels: dict[int, tuple[str, str]] = {}
+    slot = 1
     for period in range(1, 5):
         period_name = f"Q{period}"
         for symbol in periods.get(period_name, []):
-            labels.append((period_name, str(symbol).upper().replace(" ", "")))
+            labels[slot] = (
+                period_name,
+                str(symbol).upper().replace(" ", ""),
+            )
+            slot += 1
+    observations = team.get("individual_foul_observations", {}).get(
+        str(jersey), []
+    )
+    for observation in observations:
+        candidates = observation.get("period_candidates")
+        symbol = observation.get("symbol")
+        if (
+            observation.get("review_state") == "verified"
+            and isinstance(symbol, str)
+            and isinstance(candidates, list)
+            and len(candidates) == 1
+        ):
+            labels[int(observation["slot"])] = (
+                str(candidates[0]),
+                symbol.upper().replace(" ", ""),
+            )
     return labels
 
 
@@ -668,7 +707,6 @@ def build_fecaba_crops(
                 )
                 separator = detect_half_separator(row, slots=grid.slots)
                 height = row.shape[0]
-                event_index = 0
                 for slot_index in range(grid.slots):
                     left = detected_foul_grid.x_lines[slot_index]
                     right = detected_foul_grid.x_lines[slot_index + 1]
@@ -729,12 +767,7 @@ def build_fecaba_crops(
                         first_half_slots=separator.first_half_slots,
                         color=color,
                     )
-                    expected = (
-                        expected_fouls[event_index]
-                        if event_index < len(expected_fouls)
-                        else None
-                    )
-                    event_index += 1
+                    expected = expected_fouls.get(slot_index + 1)
                     label = expected[1] if expected is not None else None
                     relative = (
                         Path("fouls")

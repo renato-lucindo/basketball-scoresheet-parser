@@ -65,6 +65,27 @@ def _review_status(payload: dict[str, Any]) -> str:
     return "unverified"
 
 
+def _individual_foul_observation_counts(payload: dict[str, Any]) -> dict[str, int]:
+    counts: Counter[str] = Counter()
+    teams = payload.get("teams")
+    if not isinstance(teams, dict):
+        return {}
+    for side in ("A", "B"):
+        team = teams.get(side)
+        if not isinstance(team, dict):
+            continue
+        observations = team.get("individual_foul_observations")
+        if not isinstance(observations, dict):
+            continue
+        for entries in observations.values():
+            if not isinstance(entries, list):
+                continue
+            for entry in entries:
+                if isinstance(entry, dict):
+                    counts[str(entry.get("review_state", "pending"))] += 1
+    return dict(sorted(counts.items()))
+
+
 def _ground_truth_issues(
     payload: dict[str, Any], catalog_record: dict[str, Any]
 ) -> list[str]:
@@ -113,8 +134,16 @@ def _ground_truth_issues(
         observations = team.get("individual_foul_observations", {})
         if not isinstance(observations, dict):
             issues.append(f"team_{side}_individual_foul_observations_invalid")
-        elif any(entries for entries in observations.values()):
-            issues.append(f"team_{side}_individual_foul_observations_pending")
+        else:
+            states = [
+                entry.get("review_state", "pending")
+                for entries in observations.values()
+                if isinstance(entries, list)
+                for entry in entries
+                if isinstance(entry, dict)
+            ]
+            if "pending" in states:
+                issues.append(f"team_{side}_individual_foul_observations_pending")
 
     period_scores = payload.get("period_scores")
     for side in ("A", "B"):
@@ -225,6 +254,9 @@ def audit_fecaba_dataset(
                 or assign_document_split(document_id, writer_id=writer_id),
                 "split_source": "explicit" if explicit_split else "derived",
                 "review_status": review_status,
+                "individual_foul_observation_counts": (
+                    _individual_foul_observation_counts(payload)
+                ),
                 "ground_truth_complete": not issues,
                 "issues": issues,
             }
@@ -327,6 +359,8 @@ def build_baseline_metrics(
 
     rows = _read_jsonl(Path(predictions))
     records: list[PredictionRecord] = []
+    field_ids: set[str] = set()
+    field_type_counts: Counter[str] = Counter()
     for row in rows:
         document_id = row.get("document_id")
         if document_id not in eligible_test_documents:
@@ -340,6 +374,17 @@ def build_baseline_metrics(
             raise ValueError("Predictions require string expected and numeric confidence")
         if predicted is not None and not isinstance(predicted, str):
             raise ValueError("predicted must be a string or null")
+        field_id = row.get("field_id")
+        if not isinstance(field_id, str) or not field_id.strip():
+            raise ValueError("Predictions require a non-empty field_id")
+        unique_field_id = f"{document_id}:{field_id}"
+        if unique_field_id in field_ids:
+            raise ValueError(f"Duplicate prediction field_id: {unique_field_id}")
+        field_ids.add(unique_field_id)
+        field_type = row.get("field_type")
+        if not isinstance(field_type, str) or not field_type.strip():
+            raise ValueError("Predictions require a non-empty field_type")
+        field_type_counts[field_type] += 1
         records.append(
             PredictionRecord(
                 expected=expected,
@@ -371,6 +416,7 @@ def build_baseline_metrics(
     result = {
         "corpus_sha256": audit["corpus_sha256"],
         "prediction_records": len(records),
+        "field_type_counts": dict(sorted(field_type_counts.items())),
         "test_documents": sorted(covered_documents),
         "eligible_test_documents": sorted(eligible_test_documents),
         "quality_gate": {
@@ -389,3 +435,273 @@ def build_baseline_metrics(
         encoding="utf-8",
     )
     return result
+
+
+def _prediction_row(
+    *,
+    document_id: str,
+    field_id: str,
+    field_type: str,
+    expected: object,
+    predicted: object,
+    confidence: float | None,
+    writer_known: bool,
+) -> dict[str, object]:
+    return {
+        "document_id": document_id,
+        "field_id": field_id,
+        "field_type": field_type,
+        "expected": str(expected),
+        "predicted": None if predicted is None else str(predicted),
+        "confidence": max(0.0, min(1.0, float(confidence or 0.0))),
+        "writer_known": writer_known,
+    }
+
+
+def generate_fecaba_baseline_predictions(
+    dataset_root: str | Path,
+    *,
+    output: str | Path,
+    dpi: int = 300,
+) -> dict[str, object]:
+    """Run the deterministic parser and compare it with reviewed test labels."""
+    from .fecaba_dataset import _foul_labels
+    from .pipeline import AnalysisContext, analyze_path
+
+    root = Path(dataset_root)
+    catalog = {
+        item["document_id"]: item
+        for item in _read_jsonl(root / "catalog.jsonl")
+    }
+    audit_dir = Path(output).parent
+    audit_fecaba_dataset(root, output_dir=audit_dir)
+    manifest = _read_jsonl(audit_dir / "evaluation-manifest.jsonl")
+    eligible = [
+        item
+        for item in manifest
+        if item.get("split") == "test"
+        and item.get("review_status") in REVIEWED_STATUSES
+        and item.get("ground_truth_complete") is True
+    ]
+    if not eligible:
+        raise ValueError("No reviewed and complete test documents are available")
+
+    rows: list[dict[str, object]] = []
+    for manifest_item in eligible:
+        document_id = str(manifest_item["document_id"])
+        ground_truth = json.loads(
+            (root / "ground_truth" / f"{document_id}.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        record = catalog[document_id]
+        rosters = {
+            side: [int(number) for number in ground_truth["teams"][side]["roster"]]
+            for side in ("A", "B")
+        }
+        writer_id = manifest_item.get("writer_id")
+        result = analyze_path(
+            root / record["source_path"],
+            context=AnalysisContext(
+                rosters=rosters,
+                writer_id=str(writer_id) if writer_id else None,
+                writer_known=writer_id is not None,
+            ),
+            dpi=dpi,
+        )
+        writer_known = writer_id is not None
+
+        for side in ("A", "B"):
+            team = result.teams[side]
+            predicted_scores = {
+                event.running_score: event for event in team.scoring_events
+            }
+            for expected_event in ground_truth["scoring"]:
+                if expected_event["team"] != side:
+                    continue
+                running_score = int(expected_event["team_score_after"])
+                predicted_event = predicted_scores.get(running_score)
+                prefix = f"scoring:{side}:{running_score}"
+                rows.append(
+                    _prediction_row(
+                        document_id=document_id,
+                        field_id=f"{prefix}:points",
+                        field_type="scoring_points",
+                        expected=expected_event["points"],
+                        predicted=(
+                            predicted_event.points if predicted_event is not None else None
+                        ),
+                        confidence=(
+                            predicted_event.confidence
+                            if predicted_event is not None
+                            else 0.0
+                        ),
+                        writer_known=writer_known,
+                    )
+                )
+                rows.append(
+                    _prediction_row(
+                        document_id=document_id,
+                        field_id=f"{prefix}:period",
+                        field_type="scoring_period",
+                        expected=expected_event["period"],
+                        predicted=(
+                            f"Q{predicted_event.period}"
+                            if predicted_event is not None
+                            and predicted_event.period is not None
+                            else None
+                        ),
+                        confidence=(
+                            predicted_event.confidence
+                            if predicted_event is not None
+                            else 0.0
+                        ),
+                        writer_known=writer_known,
+                    )
+                )
+                if expected_event.get("jersey") is not None:
+                    rows.append(
+                        _prediction_row(
+                            document_id=document_id,
+                            field_id=f"{prefix}:jersey",
+                            field_type="scoring_jersey",
+                            expected=expected_event["jersey"],
+                            predicted=(
+                                predicted_event.jersey
+                                if predicted_event is not None
+                                else None
+                            ),
+                            confidence=(
+                                predicted_event.jersey_confidence
+                                if predicted_event is not None
+                                else 0.0
+                            ),
+                            writer_known=writer_known,
+                        )
+                    )
+
+            period_results = {period.number: period for period in team.periods}
+            for period in range(1, 5):
+                predicted_period = period_results.get(period)
+                rows.append(
+                    _prediction_row(
+                        document_id=document_id,
+                        field_id=f"period_score:{side}:Q{period}",
+                        field_type="period_score",
+                        expected=ground_truth["period_scores"][side][f"Q{period}"],
+                        predicted=(
+                            predicted_period.score
+                            if predicted_period is not None
+                            else None
+                        ),
+                        confidence=(
+                            predicted_period.confidence
+                            if predicted_period is not None
+                            else 0.0
+                        ),
+                        writer_known=writer_known,
+                    )
+                )
+            scoring_confidences = [
+                float(event.confidence or 0.0) for event in team.scoring_events
+            ]
+            rows.append(
+                _prediction_row(
+                    document_id=document_id,
+                    field_id=f"final_score:{side}",
+                    field_type="final_score",
+                    expected=ground_truth["final_score"][side],
+                    predicted=team.calculated_score,
+                    confidence=(min(scoring_confidences) if scoring_confidences else 0.0),
+                    writer_known=writer_known,
+                )
+            )
+
+            predicted_team_fouls = {
+                item.period: item for item in team.team_fouls
+            }
+            for period in range(1, 5):
+                predicted_foul = predicted_team_fouls.get(period)
+                rows.append(
+                    _prediction_row(
+                        document_id=document_id,
+                        field_id=f"team_fouls:{side}:Q{period}",
+                        field_type="team_fouls",
+                        expected=ground_truth["teams"][side]["team_fouls"][f"Q{period}"],
+                        predicted=(
+                            predicted_foul.x_count
+                            if predicted_foul is not None
+                            else None
+                        ),
+                        confidence=(
+                            predicted_foul.confidence
+                            if predicted_foul is not None
+                            else 0.0
+                        ),
+                        writer_known=writer_known,
+                    )
+                )
+
+            players = {player.jersey: player for player in team.players}
+            for jersey in rosters[side]:
+                labels = _foul_labels(ground_truth, side, jersey)
+                player = players.get(jersey)
+                predicted_fouls = (
+                    {foul.slot: foul for foul in player.fouls}
+                    if player is not None
+                    else {}
+                )
+                for slot, (period_name, symbol) in labels.items():
+                    predicted_foul = predicted_fouls.get(slot)
+                    prefix = f"individual_foul:{side}:{jersey}:{slot}"
+                    rows.append(
+                        _prediction_row(
+                            document_id=document_id,
+                            field_id=f"{prefix}:symbol",
+                            field_type="individual_foul_symbol",
+                            expected=symbol,
+                            predicted=(
+                                predicted_foul.raw_symbol
+                                if predicted_foul is not None
+                                else None
+                            ),
+                            confidence=(
+                                predicted_foul.confidence
+                                if predicted_foul is not None
+                                else 0.0
+                            ),
+                            writer_known=writer_known,
+                        )
+                    )
+                    rows.append(
+                        _prediction_row(
+                            document_id=document_id,
+                            field_id=f"{prefix}:period",
+                            field_type="individual_foul_period",
+                            expected=period_name,
+                            predicted=(
+                                f"Q{predicted_foul.period}"
+                                if predicted_foul is not None
+                                and predicted_foul.period is not None
+                                else None
+                            ),
+                            confidence=(
+                                predicted_foul.confidence
+                                if predicted_foul is not None
+                                else 0.0
+                            ),
+                            writer_known=writer_known,
+                        )
+                    )
+
+    target = Path(output)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with target.open("w", encoding="utf-8") as handle:
+        for row in rows:
+            handle.write(json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n")
+    return {
+        "documents": len(eligible),
+        "prediction_records": len(rows),
+        "output": str(target),
+        "parser_mode": "deterministic_without_handwriting_models",
+    }

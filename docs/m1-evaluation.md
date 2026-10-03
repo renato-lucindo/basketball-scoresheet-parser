@@ -28,7 +28,13 @@ Valid values are `train`, `validation`, and `test`. Before this value is frozen,
 
 The reviewer must verify the source scoresheet itself. Parser predictions must not be copied into ground truth without visual verification.
 
-Each team also carries an explicit `individual_fouls_reviewed` boolean. An empty `individual_fouls` object is conclusive only when that value is `true`; otherwise it means review is still pending. Legible but unresolved marks may be recorded under `individual_foul_observations`, including their cell slot, observed symbol, and possible periods. These observations preserve manual progress but are excluded from training labels and keep the document incomplete until they are resolved or rejected.
+Each team also carries an explicit `individual_fouls_reviewed` boolean. An empty `individual_fouls` object is conclusive only when that value is `true`; otherwise it means review is still pending. Cell-level entries under `individual_foul_observations` preserve the source slot and use one of three review states:
+
+- `verified`: the symbol and its single period are confirmed and may be used as a training label;
+- `unresolved`: the source was reviewed but does not uniquely determine the value; a reason is required and the cell remains excluded from training;
+- `pending`: review work remains and the document cannot be considered complete.
+
+This distinction allows reviewed ground truth to represent irreducible source ambiguity without converting it into a guessed label.
 
 ## Audit the corpus
 
@@ -51,19 +57,25 @@ Explicit ground-truth splits are authoritative and stable. A known writer is the
 
 ## Produce baseline metrics
 
-Predictions for reviewed test documents use JSONL with one recognition decision per line:
+Generate predictions from the deterministic parser, without local handwriting-model artifacts:
+
+```powershell
+python -m sumula_reader dataset-predict-baseline --dataset-root datasets/fecaba
+```
+
+The command evaluates reviewed, complete test documents and writes one recognition decision per line. Each record has a stable field identity:
 
 ```json
-{"document_id":"game-001","expected":"12","predicted":"12","confidence":0.97,"writer_known":true}
+{"document_id":"game-001","field_id":"scoring:A:1:jersey","field_type":"scoring_jersey","expected":"12","predicted":"12","confidence":0.97,"writer_known":true}
 ```
 
 Then run:
 
 ```powershell
-python -m sumula_reader dataset-baseline predictions.jsonl --dataset-root datasets/fecaba
+python -m sumula_reader dataset-baseline datasets/fecaba/evaluation/baseline-predictions.jsonl --dataset-root datasets/fecaba
 ```
 
-The command selects an acceptance threshold using the project quality gate, records global accuracy, automation rate, accepted error rate, review count, and known/unknown-writer slices, and writes `baseline-metrics.json`. The baseline stores the corpus SHA-256, so a later audit detects stale metrics after ground-truth changes.
+The first command covers scoring points, periods, jersey numbers, period and final scores, team-foul boxes, and verified individual-foul cells. Explicitly unresolved ground-truth cells are excluded. The second command selects an acceptance threshold using the project quality gate, records global accuracy, automation rate, accepted error rate, review count, field-type counts, and known/unknown-writer slices, and writes `baseline-metrics.json`. The baseline stores the corpus SHA-256, so a later audit detects stale metrics after ground-truth changes.
 
 ## M1 completion
 
