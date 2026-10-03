@@ -34,7 +34,7 @@ PARTICIPATION_GRID = ParticipationGridSpec()
 def _as_rgb_array(image: np.ndarray) -> np.ndarray:
     arr = np.asarray(image)
     if arr.ndim != 3 or arr.shape[2] < 3:
-        raise ValueError("A imagem deve ter formato HxWx3 (RGB)")
+        raise ValueError("The image must have HxWx3 (RGB) shape")
     return arr[..., :3].astype(np.int16, copy=False)
 
 
@@ -57,16 +57,15 @@ def detect_participation(
     min_ink_ratio: float = 0.008,
     starter_ring_ratio: float = 0.015,
 ) -> ParticipationDetection:
-    """Classifica a celula de participacao do atleta.
+    """Classify a player's participation cell.
 
-    Regras do MVP:
-    - X azul ou vermelho: participou;
-    - X azul envolvido por circulo vermelho: titular;
-    - sem tinta suficiente: nao participou.
+    MVP rules:
+    - blue or red X: participated;
+    - blue X surrounded by a red circle: starter;
+    - insufficient ink: did not participate.
 
-    O detector usa apenas distribuicao de cor nesta primeira versao. A etapa de
-    geometria do template garantira que o crop recebido contenha somente a
-    celula de participacao.
+    This first version uses only color distribution. Template geometry keeps
+    the supplied crop within the participation cell.
     """
     rgb = _as_rgb_array(image)
     blue_mask, red_mask = _color_masks(rgb)
@@ -132,10 +131,10 @@ def extract_players(
 ) -> list[PlayerResult]:
     side = team.upper()
     if side not in {"A", "B"}:
-        raise ValueError("team deve ser A ou B")
+        raise ValueError("team must be A or B")
     if len(jerseys) > grid.roster_rows:
         raise ValueError(
-            f"O template suporta no maximo {grid.roster_rows} linhas de jogadores"
+            f"The template supports at most {grid.roster_rows} player rows"
         )
 
     block = crop_region(

@@ -13,9 +13,9 @@ class NormalizedRect:
     def __post_init__(self) -> None:
         values = (self.x, self.y, self.width, self.height)
         if any(value < 0 or value > 1 for value in values):
-            raise ValueError("Coordenadas normalizadas devem estar entre 0 e 1")
+            raise ValueError("Normalized coordinates must be between 0 and 1")
         if self.x + self.width > 1 or self.y + self.height > 1:
-            raise ValueError("A regiao ultrapassa os limites normalizados")
+            raise ValueError("The region exceeds normalized bounds")
 
     def pixels(self, image_width: int, image_height: int) -> tuple[int, int, int, int]:
         left = round(self.x * image_width)
@@ -37,16 +37,16 @@ class TemplateSpec:
             return self.regions[name]
         except KeyError as exc:
             available = ", ".join(sorted(self.regions))
-            raise KeyError(f"Regiao desconhecida: {name}. Disponiveis: {available}") from exc
+            raise KeyError(f"Unknown region: {name}. Available: {available}") from exc
 
 
 FECABA_V1 = TemplateSpec(
     template_id="fecaba_v1",
     canonical_width=2480,
     canonical_height=3508,
-    # Coordenadas medidas dentro da borda externa da sumula branca FECABA.
-    # A normalizacao geometrica mapeia essa borda para o canvas canonico,
-    # portanto as ROIs continuam estaveis mesmo com margens diferentes.
+    # Coordinates measured within the outer border of the white FECABA form.
+    # Geometric normalization maps that border to the canonical canvas, which
+    # keeps the ROIs stable across different page margins.
     regions={
         "team_a_roster": NormalizedRect(0.000, 0.212, 0.492, 0.232),
         "team_a_jersey": NormalizedRect(0.320, 0.212, 0.042, 0.232),
@@ -77,5 +77,5 @@ def get_template(template_id: str) -> TemplateSpec:
     except KeyError as exc:
         available = ", ".join(sorted(TEMPLATES))
         raise ValueError(
-            f"Template desconhecido: {template_id}. Disponiveis: {available}"
+            f"Unknown template: {template_id}. Available: {available}"
         ) from exc
