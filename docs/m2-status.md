@@ -36,7 +36,7 @@ The `analyze` command accepts the optional context arguments `--team-a-name`, `-
 - Extract written period and final scores and reconcile them with scoring events.
 - Define behavior when optional handwriting models are absent and keep every unavailable recognition result explicit.
 - Add a representative end-to-end image/PDF fixture that asserts the complete JSON structure.
-- Document the stable output contract and supported input expectations.
+- Stabilize the documented output contract as automatic extraction replaces explicit context.
 
 ## Validation
 

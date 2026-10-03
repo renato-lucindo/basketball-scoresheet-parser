@@ -33,6 +33,8 @@ The project prioritizes correctness over raw automation: uncertain observations 
 
 The pipeline is organized into normalization, extraction, recognition, validation, and structured output stages.
 
+The [structured output contract](docs/output-schema.md) documents decision states, team results, and the machine-readable core-field completeness inventory.
+
 ## Getting Started
 
 Install development dependencies:
@@ -46,6 +48,17 @@ Run tests:
 ```powershell
 python -m pytest -q
 ```
+
+Analyze a FECABA scoresheet with roster context:
+
+```powershell
+scoresheet-parser analyze game.pdf `
+  --roster-a "4,5,6,7,8" `
+  --roster-b "9,10,11,12,13" `
+  --output result.json
+```
+
+The parser marks unavailable or contradictory core fields as `unresolved` or `review`. See the [output contract](docs/output-schema.md) for optional written-score context and result semantics.
 
 ## Project Structure
 
