@@ -26,6 +26,7 @@ class ThresholdMetrics:
     accepted_errors: int
     global_accuracy: float
     automation_rate: float
+    review_rate: float
     accepted_error_rate: float
 
 
@@ -51,6 +52,7 @@ def evaluate_threshold(
         accepted_errors=accepted_errors,
         global_accuracy=(correct / total if total else 0.0),
         automation_rate=(accepted_count / total if total else 0.0),
+        review_rate=((total - accepted_count) / total if total else 0.0),
         accepted_error_rate=(
             accepted_errors / accepted_count if accepted_count else 0.0
         ),

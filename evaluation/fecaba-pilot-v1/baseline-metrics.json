@@ -13,12 +13,159 @@
     "scoring_points": 36,
     "team_fouls": 8
   },
+  "field_type_metrics": {
+    "final_score": {
+      "metrics": {
+        "accepted": 0,
+        "accepted_error_rate": 0.0,
+        "accepted_errors": 0,
+        "automation_rate": 0.0,
+        "global_accuracy": 0.0,
+        "review_rate": 1.0,
+        "reviewed": 2,
+        "threshold": 1.0,
+        "total": 2
+      },
+      "quality_gate": {
+        "max_accepted_error_rate": 0.01,
+        "min_automation_rate": 0.1,
+        "threshold_found": false
+      }
+    },
+    "individual_foul_period": {
+      "metrics": {
+        "accepted": 2,
+        "accepted_error_rate": 1.0,
+        "accepted_errors": 2,
+        "automation_rate": 0.14285714285714285,
+        "global_accuracy": 0.0,
+        "review_rate": 0.8571428571428571,
+        "reviewed": 12,
+        "threshold": 1.0,
+        "total": 14
+      },
+      "quality_gate": {
+        "max_accepted_error_rate": 0.01,
+        "min_automation_rate": 0.1,
+        "threshold_found": false
+      }
+    },
+    "individual_foul_symbol": {
+      "metrics": {
+        "accepted": 0,
+        "accepted_error_rate": 0.0,
+        "accepted_errors": 0,
+        "automation_rate": 0.0,
+        "global_accuracy": 0.0,
+        "review_rate": 1.0,
+        "reviewed": 14,
+        "threshold": 1.0,
+        "total": 14
+      },
+      "quality_gate": {
+        "max_accepted_error_rate": 0.01,
+        "min_automation_rate": 0.1,
+        "threshold_found": false
+      }
+    },
+    "period_score": {
+      "metrics": {
+        "accepted": 0,
+        "accepted_error_rate": 0.0,
+        "accepted_errors": 0,
+        "automation_rate": 0.0,
+        "global_accuracy": 0.0,
+        "review_rate": 1.0,
+        "reviewed": 8,
+        "threshold": 1.0,
+        "total": 8
+      },
+      "quality_gate": {
+        "max_accepted_error_rate": 0.01,
+        "min_automation_rate": 0.1,
+        "threshold_found": false
+      }
+    },
+    "scoring_jersey": {
+      "metrics": {
+        "accepted": 0,
+        "accepted_error_rate": 0.0,
+        "accepted_errors": 0,
+        "automation_rate": 0.0,
+        "global_accuracy": 0.0,
+        "review_rate": 1.0,
+        "reviewed": 36,
+        "threshold": 1.0,
+        "total": 36
+      },
+      "quality_gate": {
+        "max_accepted_error_rate": 0.01,
+        "min_automation_rate": 0.1,
+        "threshold_found": false
+      }
+    },
+    "scoring_period": {
+      "metrics": {
+        "accepted": 0,
+        "accepted_error_rate": 0.0,
+        "accepted_errors": 0,
+        "automation_rate": 0.0,
+        "global_accuracy": 0.3888888888888889,
+        "review_rate": 1.0,
+        "reviewed": 36,
+        "threshold": 1.0,
+        "total": 36
+      },
+      "quality_gate": {
+        "max_accepted_error_rate": 0.01,
+        "min_automation_rate": 0.1,
+        "threshold_found": false
+      }
+    },
+    "scoring_points": {
+      "metrics": {
+        "accepted": 0,
+        "accepted_error_rate": 0.0,
+        "accepted_errors": 0,
+        "automation_rate": 0.0,
+        "global_accuracy": 0.1111111111111111,
+        "review_rate": 1.0,
+        "reviewed": 36,
+        "threshold": 1.0,
+        "total": 36
+      },
+      "quality_gate": {
+        "max_accepted_error_rate": 0.01,
+        "min_automation_rate": 0.1,
+        "threshold_found": false
+      }
+    },
+    "team_fouls": {
+      "metrics": {
+        "accepted": 2,
+        "accepted_error_rate": 1.0,
+        "accepted_errors": 2,
+        "automation_rate": 0.25,
+        "global_accuracy": 0.25,
+        "review_rate": 0.75,
+        "reviewed": 6,
+        "threshold": 1.0,
+        "total": 8
+      },
+      "quality_gate": {
+        "max_accepted_error_rate": 0.01,
+        "min_automation_rate": 0.1,
+        "threshold_found": false
+      }
+    }
+  },
   "metrics": {
     "accepted": 4,
     "accepted_error_rate": 1.0,
     "accepted_errors": 4,
     "automation_rate": 0.025974025974025976,
     "global_accuracy": 0.12987012987012986,
+    "review_rate": 0.974025974025974,
     "reviewed": 150,
     "threshold": 1.0,
     "total": 154
@@ -39,6 +186,7 @@
       "accepted_errors": 4,
       "automation_rate": 0.025974025974025976,
       "global_accuracy": 0.12987012987012986,
+      "review_rate": 0.974025974025974,
       "reviewed": 150,
       "threshold": 1.0,
       "total": 154
@@ -49,6 +197,7 @@
       "accepted_errors": 0,
       "automation_rate": 0.0,
       "global_accuracy": 0.0,
+      "review_rate": 0.0,
       "reviewed": 0,
       "threshold": 1.0,
       "total": 0

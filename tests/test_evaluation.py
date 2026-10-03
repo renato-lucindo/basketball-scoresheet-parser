@@ -21,6 +21,7 @@ class EvaluationTests(unittest.TestCase):
         metrics = evaluate_threshold(self.records, 0.80)
         self.assertEqual(metrics.accepted, 3)
         self.assertEqual(metrics.reviewed, 1)
+        self.assertEqual(metrics.review_rate, 0.25)
         self.assertEqual(metrics.accepted_errors, 0)
         self.assertEqual(metrics.accepted_error_rate, 0.0)
 

@@ -281,6 +281,13 @@ class M1AuditTests(unittest.TestCase):
 
             self.assertEqual(result["corpus_sha256"], audit["corpus_sha256"])
             self.assertEqual(result["metrics"]["accepted_error_rate"], 0.0)
+            self.assertEqual(result["metrics"]["review_rate"], 0.0)
+            self.assertIn("scoring_jersey", result["field_type_metrics"])
+            self.assertTrue(
+                result["field_type_metrics"]["scoring_jersey"]["quality_gate"][
+                    "threshold_found"
+                ]
+            )
             updated = audit_fecaba_dataset(root)
             self.assertTrue(updated["exit_criteria"]["baseline_metrics_reproducible"])
 

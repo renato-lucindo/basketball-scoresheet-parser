@@ -359,6 +359,7 @@ def build_baseline_metrics(
 
     rows = _read_jsonl(Path(predictions))
     records: list[PredictionRecord] = []
+    records_by_field_type: dict[str, list[PredictionRecord]] = {}
     field_ids: set[str] = set()
     field_type_counts: Counter[str] = Counter()
     for row in rows:
@@ -385,15 +386,15 @@ def build_baseline_metrics(
         if not isinstance(field_type, str) or not field_type.strip():
             raise ValueError("Predictions require a non-empty field_type")
         field_type_counts[field_type] += 1
-        records.append(
-            PredictionRecord(
+        record = PredictionRecord(
                 expected=expected,
                 predicted=predicted,
                 confidence=float(confidence),
                 document_id=document_id,
                 writer_known=bool(row.get("writer_known", False)),
             )
-        )
+        records.append(record)
+        records_by_field_type.setdefault(field_type, []).append(record)
     if not records:
         raise ValueError("Prediction file is empty")
 
@@ -413,6 +414,24 @@ def build_baseline_metrics(
     threshold = selected.threshold if selected is not None else 1.0
     metrics = evaluate_threshold(records, threshold)
     writer_metrics = compare_known_unknown_writers(records, threshold)
+    field_type_metrics: dict[str, dict[str, object]] = {}
+    for field_type, field_records in sorted(records_by_field_type.items()):
+        field_selected = choose_acceptance_threshold(
+            field_records,
+            max_accepted_error_rate=max_accepted_error_rate,
+            min_automation_rate=min_automation_rate,
+        )
+        field_threshold = (
+            field_selected.threshold if field_selected is not None else 1.0
+        )
+        field_type_metrics[field_type] = {
+            "quality_gate": {
+                "max_accepted_error_rate": max_accepted_error_rate,
+                "min_automation_rate": min_automation_rate,
+                "threshold_found": field_selected is not None,
+            },
+            "metrics": asdict(evaluate_threshold(field_records, field_threshold)),
+        }
     result = {
         "corpus_sha256": audit["corpus_sha256"],
         "prediction_records": len(records),
@@ -428,6 +447,7 @@ def build_baseline_metrics(
         "writer_metrics": {
             key: asdict(value) for key, value in writer_metrics.items()
         },
+        "field_type_metrics": field_type_metrics,
     }
     artifacts.mkdir(parents=True, exist_ok=True)
     (artifacts / "baseline-metrics.json").write_text(

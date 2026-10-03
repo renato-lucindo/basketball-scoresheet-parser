@@ -45,6 +45,8 @@ M1 completion evidence: [M1 Status](m1-status.md).
 
 M2 completion evidence: [M2 Status](m2-status.md).
 
+Current measurement evidence: [M3 Status](m3-status.md).
+
 M3 work is limited to measuring the FECABA parser and deriving acceptance policy from the M1 held-out corpus. The default work queue is:
 
 - generating component and end-to-end predictions for every evaluated core-field type;
