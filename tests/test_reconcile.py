@@ -54,7 +54,7 @@ class ReconcileTests(unittest.TestCase):
         reconcile_team(team)
         self.assertEqual(team.status, DecisionStatus.REVIEW)
         self.assertTrue(
-            any("salto 3" in warning for warning in team.warnings)
+            any("jump of 3" in warning for warning in team.warnings)
         )
 
     def test_unknown_jersey_requires_review(self):
@@ -71,9 +71,28 @@ class ReconcileTests(unittest.TestCase):
         )
         reconcile_team(team)
         self.assertEqual(team.status, DecisionStatus.REVIEW)
+        self.assertEqual(team.scoring_events[0].status, DecisionStatus.UNRESOLVED)
         self.assertTrue(
-            any("camisa nao reconhecida" in warning for warning in team.warnings)
+            any("jersey is unresolved" in warning for warning in team.warnings)
         )
+
+    def test_unknown_period_is_unresolved(self):
+        players = [
+            PlayerResult(jersey=number, participated=True, starter=True)
+            for number in range(4, 9)
+        ]
+        team = TeamResult(
+            side="A",
+            players=players,
+            scoring_events=[
+                ScoringEvent("A", None, 2, 4, ShotType.TWO_POINT, 2, "red"),
+            ],
+        )
+
+        reconcile_team(team)
+
+        self.assertEqual(team.scoring_events[0].status, DecisionStatus.UNRESOLVED)
+        self.assertTrue(any("period is unresolved" in warning for warning in team.warnings))
 
     def test_reconciliation_is_idempotent(self):
         players = [
@@ -130,7 +149,7 @@ class ReconcileTests(unittest.TestCase):
         reconcile_team(team)
 
         self.assertFalse(
-            any("faltas coletivas derivadas" in warning for warning in team.warnings)
+            any("derived team fouls" in warning for warning in team.warnings)
         )
 
 

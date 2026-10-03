@@ -37,28 +37,30 @@ When work competes for time, prioritize it in this order:
 
 ## Current Milestone
 
-**Active milestone: M2 — Complete FECABA parser.**
+**Active milestone: M3 — Measured reliability.**
 
-M1 was completed on 2026-10-03. Its operational procedure and evidence format remain documented in [M1 — Trusted Evaluation Data](m1-evaluation.md).
+M1 and M2 were completed on 2026-10-03. The M1 operational procedure and evidence format remain documented in [M1 — Trusted Evaluation Data](m1-evaluation.md).
 
-Completion evidence: [M1 Status](m1-status.md).
+M1 completion evidence: [M1 Status](m1-status.md).
 
-M2 work is limited to completing and validating the public FECABA image/PDF-to-`DocumentResult` path. The default work queue is:
+M2 completion evidence: [M2 Status](m2-status.md).
 
-- inventorying the fields currently emitted by the public CLI/API against the M2 core record;
-- implementing missing FECABA extraction and structured-output paths;
-- propagating contradictions and uncertain observations as review or unresolved states;
-- adding representative end-to-end integration coverage;
-- preserving the M1 corpus identity and evaluation procedure while parser behavior changes.
+M3 work is limited to measuring the FECABA parser and deriving acceptance policy from the M1 held-out corpus. The default work queue is:
 
-The following work is frozen by default while M2 is active:
+- generating component and end-to-end predictions for every evaluated core-field type;
+- reporting accepted error rate, automation rate, global accuracy, and review rate together;
+- deriving acceptance thresholds from held-out evidence rather than checkpoint defaults;
+- measuring known-writer and unknown-writer slices separately where the corpus permits;
+- preserving M2 review and unresolved states when no threshold satisfies the quality gate.
+
+The following work is frozen by default while M3 is active:
 
 - support for new scoresheet formats;
 - product surfaces such as dashboards, mobile apps, or SaaS features;
-- optimization work whose only purpose is increasing automation before the evaluation baseline is trustworthy;
-- milestone M3-M6 work that does not remove a direct blocker for M2.
+- optimization work that does not produce reproducible reliability evidence;
+- milestone M4-M6 work that does not remove a direct blocker for M3.
 
-Advance from M2 to M3 only after every M2 exit criterion below has evidence in the repository or release records. When the active milestone changes, update this section in the same commit/PR that records the evidence for the transition.
+Advance from M3 to M4 only after every M3 exit criterion below has evidence in the repository or release records. When the active milestone changes, update this section in the same commit/PR that records the evidence for the transition.
 
 ## Goals Through v1.0
 

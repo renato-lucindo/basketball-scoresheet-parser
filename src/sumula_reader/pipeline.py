@@ -5,11 +5,18 @@ from pathlib import Path
 
 import numpy as np
 
+from .completeness import assess_core_fields
 from .decision import DecisionEngine
 from .fouls import extract_player_foul_data, extract_team_foul_indicators
 from .imaging import load_document, normalize_document
-from .models import DocumentMetadata, DocumentResult, TeamResult
-from .participation import extract_players
+from .models import (
+    DecisionStatus,
+    DocumentMetadata,
+    DocumentResult,
+    PeriodResult,
+    TeamResult,
+)
+from .participation import RosterExtraction, extract_players, extract_roster
 from .recognition import (
     FoulRecognitionAdapter,
     HandwritingRecognizer,
@@ -19,11 +26,19 @@ from .recognition import (
 from .reconcile import reconcile_document
 from .scoring import extract_scoring_events
 from .template import FECABA_V1, TemplateSpec
+from .written_scores import (
+    WrittenScoreCandidate,
+    extract_final_score_candidates,
+    extract_period_score_candidates,
+)
 
 
 @dataclass(slots=True)
 class AnalysisContext:
     rosters: dict[str, list[int]] = field(default_factory=dict)
+    team_names: dict[str, str] = field(default_factory=dict)
+    period_scores: dict[str, list[int]] = field(default_factory=dict)
+    final_scores: dict[str, int] = field(default_factory=dict)
     writer_id: str | None = None
     writer_known: bool = False
     writer_profile: WriterProfile | None = None
@@ -41,6 +56,23 @@ def analyze_image(
         side.upper(): numbers
         for side, numbers in context.rosters.items()
     }
+    roster_results: dict[str, RosterExtraction] = {}
+    for side in ("A", "B"):
+        if rosters.get(side):
+            roster_results[side] = RosterExtraction(
+                jerseys=list(rosters[side]),
+                status=DecisionStatus.ACCEPTED,
+            )
+            continue
+        roster_results[side] = extract_roster(
+            normalized_image,
+            team=side,
+            recognizer=handwriting,
+            template=template,
+            writer_id=context.writer_id,
+            writer_profile=context.writer_profile,
+        )
+        rosters[side] = list(roster_results[side].jerseys)
     jersey_recognizer = (
         JerseyRecognitionAdapter(
             handwriting,
@@ -66,6 +98,31 @@ def analyze_image(
         recognizer=jersey_recognizer,
         decision_engine=decision_engine,
     )
+    period_results = extract_period_score_candidates(
+        normalized_image,
+        recognizer=handwriting,
+        template=template,
+        writer_id=context.writer_id,
+        writer_profile=context.writer_profile,
+    )
+    for side, scores in context.period_scores.items():
+        period_results[side.upper()] = [
+            PeriodResult(number=index, written_score=score)
+            for index, score in enumerate(scores, start=1)
+        ]
+    final_score_results = extract_final_score_candidates(
+        normalized_image,
+        recognizer=handwriting,
+        template=template,
+        writer_id=context.writer_id,
+        writer_profile=context.writer_profile,
+    )
+    for side, score in context.final_scores.items():
+        final_score_results[side.upper()] = WrittenScoreCandidate(
+            value=score,
+            confidence=None,
+            status=DecisionStatus.ACCEPTED,
+        )
 
     teams: dict[str, TeamResult] = {}
     for side in ("A", "B"):
@@ -95,7 +152,11 @@ def analyze_image(
 
         teams[side] = TeamResult(
             side=side,
+            name=context.team_names.get(side),
             players=players,
+            roster_status=roster_results[side].status,
+            roster_observations=roster_results[side].observations,
+            periods=period_results.get(side, []),
             scoring_events=[
                 event for event in scoring_events if event.team == side
             ],
@@ -105,6 +166,14 @@ def analyze_image(
                 template=template,
                 decision_engine=decision_engine,
             ),
+            written_final_score=(
+                final_score_results[side].value
+                if final_score_results[side].status is DecisionStatus.ACCEPTED
+                else None
+            ),
+            written_final_score_candidate=final_score_results[side].value,
+            written_final_score_confidence=final_score_results[side].confidence,
+            written_final_score_status=final_score_results[side].status,
         )
 
     result = DocumentResult(
@@ -115,7 +184,7 @@ def analyze_image(
         ),
         teams=teams,
     )
-    return reconcile_document(result)
+    return assess_core_fields(reconcile_document(result))
 
 
 def analyze_path(

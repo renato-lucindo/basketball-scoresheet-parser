@@ -50,6 +50,14 @@ class ParticipantMark(StrEnum):
 
 
 @dataclass(slots=True)
+class RosterRowObservation:
+    row: int
+    jersey: int | None
+    confidence: float | None
+    status: DecisionStatus
+
+
+@dataclass(slots=True)
 class Evidence:
     observed: Any = None
     interpreted: Any = None
@@ -125,7 +133,7 @@ class TeamFoulIndicator:
 
     def __post_init__(self) -> None:
         if not 0 <= self.x_count <= 4:
-            raise ValueError("x_count deve estar entre 0 e 4")
+            raise ValueError("x_count must be between 0 and 4")
         if self.minimum_team_fouls is None:
             self.minimum_team_fouls = self.x_count
         if self.x_count == 4:
@@ -142,6 +150,8 @@ class PlayerResult:
     starter: bool = False
     participation_confidence: float | None = None
     starter_confidence: float | None = None
+    participation_status: DecisionStatus = DecisionStatus.ACCEPTED
+    starter_status: DecisionStatus = DecisionStatus.ACCEPTED
     fouls: list[FoulEvent] = field(default_factory=list)
     foul_terminals: list[FoulTerminal] = field(default_factory=list)
     points: int = 0
@@ -151,7 +161,7 @@ class PlayerResult:
 
     def __post_init__(self) -> None:
         if self.starter and not self.participated:
-            raise ValueError("starter=true exige participated=true")
+            raise ValueError("starter=true requires participated=true")
 
 
 @dataclass(slots=True)
@@ -160,6 +170,7 @@ class PeriodResult:
     period_type: PeriodType = PeriodType.REGULAR
     score: int | None = None
     written_score: int | None = None
+    written_score_candidate: int | None = None
     confidence: float | None = None
     status: DecisionStatus = DecisionStatus.ACCEPTED
 
@@ -169,11 +180,16 @@ class TeamResult:
     side: str
     name: str | None = None
     players: list[PlayerResult] = field(default_factory=list)
+    roster_status: DecisionStatus = DecisionStatus.ACCEPTED
+    roster_observations: list[RosterRowObservation] = field(default_factory=list)
     periods: list[PeriodResult] = field(default_factory=list)
     scoring_events: list[ScoringEvent] = field(default_factory=list)
     team_fouls: list[TeamFoulIndicator] = field(default_factory=list)
     calculated_score: int = 0
     written_final_score: int | None = None
+    written_final_score_candidate: int | None = None
+    written_final_score_confidence: float | None = None
+    written_final_score_status: DecisionStatus = DecisionStatus.ACCEPTED
     status: DecisionStatus = DecisionStatus.ACCEPTED
     warnings: list[str] = field(default_factory=list)
 
@@ -187,10 +203,18 @@ class TeamResult:
 
 
 @dataclass(slots=True)
+class CoreFieldStatus:
+    path: str
+    status: DecisionStatus
+    reason: str | None = None
+
+
+@dataclass(slots=True)
 class DocumentResult:
     schema_version: str = "0.1"
     metadata: DocumentMetadata = field(default_factory=DocumentMetadata)
     teams: dict[str, TeamResult] = field(default_factory=dict)
+    core_fields: list[CoreFieldStatus] = field(default_factory=list)
     status: DecisionStatus = DecisionStatus.ACCEPTED
     warnings: list[str] = field(default_factory=list)
 
