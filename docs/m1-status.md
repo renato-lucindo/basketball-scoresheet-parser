@@ -12,6 +12,7 @@ The first reproducible local corpus audit found:
 - 1 pilot (the test document) with scoring events visually transcribed and period totals reconciled;
 - an explicit individual-foul review state that distinguishes a verified empty result from unfinished review;
 - a pending-observation area that preserves legible foul marks without admitting them as training labels;
+- 14 test-pilot individual-foul periods uniquely determined by ink color, cell order, and team-foul constraints; 10 labels from fully resolved rows are recorded, while 25 observations remain pending;
 - all 5 pilots remain in `partial` review state while individual foul cells and the remaining scoring events are verified;
 - 4 anonymized writer groups recorded in the audit manifest;
 - deterministic pilot split: 2 train, 2 validation, 1 test;
