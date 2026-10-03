@@ -1,11 +1,18 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Sequence
 
 import numpy as np
 
 from .imaging import crop_region
-from .models import DecisionStatus, ParticipantMark, PlayerResult
+from .models import (
+    DecisionStatus,
+    ParticipantMark,
+    PlayerResult,
+    RosterRowObservation,
+)
+from .recognition import HandwritingRecognizer, WriterProfile, apply_writer_profile
 from .template import FECABA_V1, TemplateSpec
 
 
@@ -29,6 +36,13 @@ class ParticipationGridSpec:
 
 
 PARTICIPATION_GRID = ParticipationGridSpec()
+
+
+@dataclass(slots=True)
+class RosterExtraction:
+    jerseys: list[int] = field(default_factory=list)
+    status: DecisionStatus = DecisionStatus.UNRESOLVED
+    observations: list[RosterRowObservation] = field(default_factory=list)
 
 
 def _as_rgb_array(image: np.ndarray) -> np.ndarray:
@@ -119,6 +133,118 @@ def detect_participation(
         red_pixel_ratio=round(red_ratio, 6),
         red_ring_ratio=round(red_ring_ratio, 6),
     )
+
+
+def extract_roster(
+    normalized_image: np.ndarray,
+    *,
+    team: str,
+    recognizer: HandwritingRecognizer | None,
+    template: TemplateSpec = FECABA_V1,
+    grid: ParticipationGridSpec = PARTICIPATION_GRID,
+    writer_id: str | None = None,
+    writer_profile: WriterProfile | None = None,
+    min_colored_ink_ratio: float = 0.004,
+    acceptance_threshold: float | None = None,
+) -> RosterExtraction:
+    """Recognize occupied jersey rows without inventing low-confidence players."""
+
+    side = team.upper()
+    if side not in {"A", "B"}:
+        raise ValueError("team must be A or B")
+    if recognizer is None:
+        return RosterExtraction()
+
+    block = crop_region(
+        normalized_image,
+        template.region(f"team_{side.lower()}_jersey"),
+    )
+    data_top = round(block.shape[0] * grid.header_fraction)
+    data = block[data_top:]
+    row_height = data.shape[0] / grid.roster_rows
+    allowed_labels: Sequence[str] = tuple(str(number) for number in range(100))
+    observations: list[RosterRowObservation] = []
+    jerseys: list[int] = []
+    seen: set[int] = set()
+
+    for index in range(grid.roster_rows):
+        top = round(index * row_height)
+        bottom = round((index + 1) * row_height)
+        interior = _roster_row_interior(data[top:bottom])
+        if _colored_ink_ratio(interior) < min_colored_ink_ratio:
+            continue
+
+        result = recognizer.recognize(
+            interior,
+            field_type="jersey",
+            allowed_labels=allowed_labels,
+            writer_id=writer_id,
+        )
+        result = apply_writer_profile(result, writer_profile)
+        jersey = _recognized_jersey(result.value)
+        status = result.status
+        if jersey is None or jersey in seen:
+            status = DecisionStatus.UNRESOLVED
+        elif (
+            acceptance_threshold is None
+            or result.status is not DecisionStatus.ACCEPTED
+            or result.confidence < acceptance_threshold
+        ):
+            status = DecisionStatus.REVIEW
+
+        observations.append(
+            RosterRowObservation(
+                row=index + 1,
+                jersey=jersey,
+                confidence=result.confidence,
+                status=status,
+            )
+        )
+        if jersey is not None and status is DecisionStatus.ACCEPTED:
+            jerseys.append(jersey)
+            seen.add(jersey)
+
+    if not observations:
+        status = DecisionStatus.UNRESOLVED
+    elif any(item.status is DecisionStatus.UNRESOLVED for item in observations):
+        status = DecisionStatus.UNRESOLVED
+    elif any(item.status is DecisionStatus.REVIEW for item in observations):
+        status = DecisionStatus.REVIEW
+    elif not jerseys:
+        status = DecisionStatus.UNRESOLVED
+    else:
+        status = DecisionStatus.ACCEPTED
+    return RosterExtraction(jerseys=jerseys, status=status, observations=observations)
+
+
+def _roster_row_interior(row: np.ndarray) -> np.ndarray:
+    if row.size == 0:
+        return row
+    height, width = row.shape[:2]
+    y_margin = max(1, round(height * 0.12))
+    x_margin = max(1, round(width * 0.06))
+    return row[
+        y_margin : max(y_margin + 1, height - y_margin),
+        x_margin : max(x_margin + 1, width - x_margin),
+    ]
+
+
+def _colored_ink_ratio(image: np.ndarray) -> float:
+    if image.size == 0:
+        return 0.0
+    rgb = _as_rgb_array(image)
+    saturation = np.max(rgb, axis=2) - np.min(rgb, axis=2)
+    return float((saturation >= 28).mean())
+
+
+def _recognized_jersey(value: str | None) -> int | None:
+    if value is None:
+        return None
+    try:
+        jersey = int(value)
+    except ValueError:
+        return None
+    return jersey if 0 <= jersey <= 99 else None
 
 
 def extract_players(

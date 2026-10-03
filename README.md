@@ -49,16 +49,15 @@ Run tests:
 python -m pytest -q
 ```
 
-Analyze a FECABA scoresheet with roster context:
+Analyze a FECABA scoresheet:
 
 ```powershell
 scoresheet-parser analyze game.pdf `
-  --roster-a "4,5,6,7,8" `
-  --roster-b "9,10,11,12,13" `
+  --handwriting-model-dir models/handwriting `
   --output result.json
 ```
 
-The parser marks unavailable or contradictory core fields as `unresolved` or `review`. See the [output contract](docs/output-schema.md) for optional written-score context and result semantics.
+Automatic roster recognition currently emits review candidates because M1 found no acceptance threshold that meets the quality gate. Use `--roster-a` and `--roster-b` to provide reviewed rosters. The parser marks unavailable or contradictory core fields as `unresolved` or `review`. See the [output contract](docs/output-schema.md) for optional written-score context and result semantics.
 
 ## Project Structure
 

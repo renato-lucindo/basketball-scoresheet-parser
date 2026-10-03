@@ -8,7 +8,7 @@ M2 — Complete FECABA Parser is **in progress**.
 
 The public `analyze` command already accepts a FECABA image or PDF, normalizes it, extracts participation marks, scoring events, individual fouls, and team-foul indicators, reconciles derived totals, and serializes a `DocumentResult`.
 
-The current command still requires both team rosters as input. Team names, written period scores, and written final scores can be supplied as explicit context while automatic extraction is developed. Handwritten jersey and foul recognition also requires optional local model files.
+The command can recognize occupied roster rows with an optional handwriting model. Because M1 found no acceptance threshold that satisfies the quality gate, automatic jersey candidates remain in review and do not silently become players. Invalid and duplicate rows are unresolved. Callers can supply reviewed rosters as overrides. Team names, written period scores, and written final scores can also be supplied as explicit context while automatic extraction is developed.
 
 ## Core-field contract
 
@@ -32,7 +32,7 @@ The `analyze` command accepts the optional context arguments `--team-a-name`, `-
 
 ## Remaining M2 work
 
-- Extract team names and rosters so the public command can run without undocumented manual transcription.
+- Extract team names automatically and validate roster-row occupancy against real held-out forms.
 - Extract written period and final scores and reconcile them with scoring events.
 - Define behavior when optional handwriting models are absent and keep every unavailable recognition result explicit.
 - Add a representative end-to-end image/PDF fixture that asserts the complete JSON structure.
@@ -46,4 +46,4 @@ Run the full suite from a clean development environment:
 python -m pytest -q
 ```
 
-The current M2 branch passes 107 tests plus 3 parameterized subtests.
+The current M2 branch passes 112 tests plus 3 parameterized subtests.

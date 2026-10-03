@@ -24,6 +24,11 @@ class CliTests(unittest.TestCase):
         )
         self.assertEqual(args.command, "analyze")
 
+    def test_analyze_allows_automatic_roster_recognition(self):
+        args = build_parser().parse_args(["analyze", "game.pdf"])
+        self.assertIsNone(args.roster_a)
+        self.assertIsNone(args.roster_b)
+
     def test_parse_period_scores(self):
         self.assertEqual(_parse_period_scores("16, 21,27,26"), [16, 21, 27, 26])
 

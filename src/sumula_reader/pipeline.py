@@ -9,8 +9,14 @@ from .completeness import assess_core_fields
 from .decision import DecisionEngine
 from .fouls import extract_player_foul_data, extract_team_foul_indicators
 from .imaging import load_document, normalize_document
-from .models import DocumentMetadata, DocumentResult, PeriodResult, TeamResult
-from .participation import extract_players
+from .models import (
+    DecisionStatus,
+    DocumentMetadata,
+    DocumentResult,
+    PeriodResult,
+    TeamResult,
+)
+from .participation import RosterExtraction, extract_players, extract_roster
 from .recognition import (
     FoulRecognitionAdapter,
     HandwritingRecognizer,
@@ -45,6 +51,23 @@ def analyze_image(
         side.upper(): numbers
         for side, numbers in context.rosters.items()
     }
+    roster_results: dict[str, RosterExtraction] = {}
+    for side in ("A", "B"):
+        if rosters.get(side):
+            roster_results[side] = RosterExtraction(
+                jerseys=list(rosters[side]),
+                status=DecisionStatus.ACCEPTED,
+            )
+            continue
+        roster_results[side] = extract_roster(
+            normalized_image,
+            team=side,
+            recognizer=handwriting,
+            template=template,
+            writer_id=context.writer_id,
+            writer_profile=context.writer_profile,
+        )
+        rosters[side] = list(roster_results[side].jerseys)
     jersey_recognizer = (
         JerseyRecognitionAdapter(
             handwriting,
@@ -101,6 +124,8 @@ def analyze_image(
             side=side,
             name=context.team_names.get(side),
             players=players,
+            roster_status=roster_results[side].status,
+            roster_observations=roster_results[side].observations,
             periods=[
                 PeriodResult(number=index, written_score=score)
                 for index, score in enumerate(context.period_scores.get(side, ()), start=1)

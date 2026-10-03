@@ -50,6 +50,14 @@ class ParticipantMark(StrEnum):
 
 
 @dataclass(slots=True)
+class RosterRowObservation:
+    row: int
+    jersey: int | None
+    confidence: float | None
+    status: DecisionStatus
+
+
+@dataclass(slots=True)
 class Evidence:
     observed: Any = None
     interpreted: Any = None
@@ -171,6 +179,8 @@ class TeamResult:
     side: str
     name: str | None = None
     players: list[PlayerResult] = field(default_factory=list)
+    roster_status: DecisionStatus = DecisionStatus.ACCEPTED
+    roster_observations: list[RosterRowObservation] = field(default_factory=list)
     periods: list[PeriodResult] = field(default_factory=list)
     scoring_events: list[ScoringEvent] = field(default_factory=list)
     team_fouls: list[TeamFoulIndicator] = field(default_factory=list)

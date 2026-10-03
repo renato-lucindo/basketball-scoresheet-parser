@@ -69,7 +69,11 @@ def _team_fields(team: TeamResult) -> list[CoreFieldStatus]:
 
     return [
         _field(f"teams.{side}.name", team.name is not None, "team name was not extracted"),
-        _field(f"teams.{side}.players", players_available, "player roster is empty"),
+        CoreFieldStatus(
+            path=f"teams.{side}.players",
+            status=(team.roster_status if players_available else DecisionStatus.UNRESOLVED),
+            reason=(None if players_available and team.roster_status is DecisionStatus.ACCEPTED else "player roster is empty or contains unresolved rows"),
+        ),
         CoreFieldStatus(
             path=f"teams.{side}.participation",
             status=participation_status,

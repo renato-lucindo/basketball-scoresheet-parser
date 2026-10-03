@@ -3,7 +3,8 @@ from unittest.mock import patch
 
 import numpy as np
 
-from sumula_reader.models import PlayerResult, TeamFoulIndicator
+from sumula_reader.models import DecisionStatus, PlayerResult, TeamFoulIndicator
+from sumula_reader.participation import RosterExtraction
 from sumula_reader.pipeline import AnalysisContext, analyze_image
 
 
@@ -43,6 +44,35 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(states["teams.A.name"], "accepted")
         self.assertEqual(states["teams.A.period_scoring"], "accepted")
         self.assertEqual(states["teams.A.final_score"], "accepted")
+
+    def test_missing_context_rosters_use_handwriting_extraction(self):
+        context = AnalysisContext()
+        roster_results = {
+            "A": RosterExtraction([4], DecisionStatus.ACCEPTED),
+            "B": RosterExtraction([9], DecisionStatus.REVIEW),
+        }
+
+        def roster(_image, *, team, **kwargs):
+            return roster_results[team]
+
+        def players(_image, *, team, jerseys, template):
+            return [PlayerResult(jersey=jersey) for jersey in jerseys]
+
+        with (
+            patch("sumula_reader.pipeline.extract_roster", side_effect=roster),
+            patch("sumula_reader.pipeline.extract_scoring_events", return_value=[]),
+            patch("sumula_reader.pipeline.extract_players", side_effect=players),
+            patch("sumula_reader.pipeline.extract_player_foul_data", return_value=([], [])),
+            patch("sumula_reader.pipeline.extract_team_foul_indicators", return_value=[]),
+        ):
+            result = analyze_image(
+                np.zeros((10, 10, 3), dtype=np.uint8),
+                context=context,
+                handwriting=object(),
+            )
+
+        self.assertEqual([player.jersey for player in result.teams["A"].players], [4])
+        self.assertEqual(result.teams["B"].roster_status, DecisionStatus.REVIEW)
 
 
 if __name__ == "__main__":

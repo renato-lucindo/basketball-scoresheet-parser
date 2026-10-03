@@ -41,8 +41,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="Run the FECABA pipeline and return structured JSON",
     )
     analyze.add_argument("input", type=Path)
-    analyze.add_argument("--roster-a", required=True)
-    analyze.add_argument("--roster-b", required=True)
+    analyze.add_argument(
+        "--roster-a",
+        help="Comma-separated team A roster; overrides automatic recognition",
+    )
+    analyze.add_argument(
+        "--roster-b",
+        help="Comma-separated team B roster; overrides automatic recognition",
+    )
     analyze.add_argument("--team-a-name")
     analyze.add_argument("--team-b-name")
     analyze.add_argument(
@@ -446,8 +452,9 @@ def main() -> None:
                 raise SystemExit(str(exc)) from exc
         context = AnalysisContext(
             rosters={
-                "A": _parse_roster(args.roster_a),
-                "B": _parse_roster(args.roster_b),
+                side: _parse_roster(value)
+                for side, value in (("A", args.roster_a), ("B", args.roster_b))
+                if value is not None
             },
             team_names={
                 side: name.strip()

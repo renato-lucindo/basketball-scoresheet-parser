@@ -60,14 +60,15 @@ The required paths cover team name, players, participation, starters, period sco
 
 ## CLI output
 
-Run the parser with explicit roster context:
+Run the parser with a handwriting model:
 
 ```powershell
 scoresheet-parser analyze game.pdf `
-  --roster-a "4,5,6,7,8" `
-  --roster-b "9,10,11,12,13" `
+  --handwriting-model-dir models/handwriting `
   --output result.json
 ```
+
+Roster recognition preserves a row-level observation for every occupied row. The current M1 evidence does not justify an automatic acceptance threshold, so model candidates remain in review and do not become players. Invalid and duplicate predictions are unresolved. `--roster-a` and `--roster-b` provide reviewed overrides.
 
 Until automatic header and written-score extraction is complete, callers may also provide `--team-a-name`, `--team-b-name`, `--period-scores-a`, `--period-scores-b`, `--final-score-a`, and `--final-score-b`. These values enter the normal reconciliation path and do not bypass review checks.
 
