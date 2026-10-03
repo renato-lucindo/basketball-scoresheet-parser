@@ -43,6 +43,18 @@ def build_parser() -> argparse.ArgumentParser:
     analyze.add_argument("input", type=Path)
     analyze.add_argument("--roster-a", required=True)
     analyze.add_argument("--roster-b", required=True)
+    analyze.add_argument("--team-a-name")
+    analyze.add_argument("--team-b-name")
+    analyze.add_argument(
+        "--period-scores-a",
+        help="Four comma-separated written period scores for team A",
+    )
+    analyze.add_argument(
+        "--period-scores-b",
+        help="Four comma-separated written period scores for team B",
+    )
+    analyze.add_argument("--final-score-a", type=int)
+    analyze.add_argument("--final-score-b", type=int)
     analyze.add_argument("--writer-id")
     analyze.add_argument(
         "--handwriting-model-dir",
@@ -437,6 +449,30 @@ def main() -> None:
                 "A": _parse_roster(args.roster_a),
                 "B": _parse_roster(args.roster_b),
             },
+            team_names={
+                side: name.strip()
+                for side, name in (
+                    ("A", args.team_a_name),
+                    ("B", args.team_b_name),
+                )
+                if name is not None and name.strip()
+            },
+            period_scores={
+                side: _parse_period_scores(value)
+                for side, value in (
+                    ("A", args.period_scores_a),
+                    ("B", args.period_scores_b),
+                )
+                if value is not None
+            },
+            final_scores={
+                side: value
+                for side, value in (
+                    ("A", args.final_score_a),
+                    ("B", args.final_score_b),
+                )
+                if value is not None
+            },
             writer_id=args.writer_id,
             writer_known=args.writer_id is not None,
         )
@@ -483,6 +519,19 @@ def _parse_roster(value: str) -> list[int]:
     if len(numbers) > 12:
         raise SystemExit("O template FECABA suporta no maximo 12 jogadores")
     return numbers
+
+
+def _parse_period_scores(value: str) -> list[int]:
+    items = [item.strip() for item in value.split(",")]
+    if len(items) != 4:
+        raise SystemExit("Period scores must contain exactly four comma-separated values")
+    try:
+        scores = [int(item) for item in items]
+    except ValueError as exc:
+        raise SystemExit("Period scores must be non-negative integers") from exc
+    if any(score < 0 for score in scores):
+        raise SystemExit("Period scores must be non-negative integers")
+    return scores
 
 
 if __name__ == "__main__":

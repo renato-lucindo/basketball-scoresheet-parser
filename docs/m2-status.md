@@ -8,7 +8,7 @@ M2 — Complete FECABA Parser is **in progress**.
 
 The public `analyze` command already accepts a FECABA image or PDF, normalizes it, extracts participation marks, scoring events, individual fouls, and team-foul indicators, reconciles derived totals, and serializes a `DocumentResult`.
 
-The current command still requires both team rosters as input. Team names, written period scores, and written final scores are not yet extracted. Handwritten jersey and foul recognition also requires optional local model files.
+The current command still requires both team rosters as input. Team names, written period scores, and written final scores can be supplied as explicit context while automatic extraction is developed. Handwritten jersey and foul recognition also requires optional local model files.
 
 ## Core-field contract
 
@@ -27,6 +27,8 @@ The inventory covers, for each team:
 - final score.
 
 An unresolved core field propagates to the team and document status. Contradictory fields remain in review.
+
+The `analyze` command accepts the optional context arguments `--team-a-name`, `--team-b-name`, `--period-scores-a`, `--period-scores-b`, `--final-score-a`, and `--final-score-b`. Period-score values contain exactly four comma-separated non-negative integers. Supplied values are reconciled against extracted scoring events and do not bypass review status when they disagree.
 
 ## Remaining M2 work
 

@@ -1,6 +1,6 @@
 import unittest
 
-from sumula_reader.cli import _parse_roster, build_parser
+from sumula_reader.cli import _parse_period_scores, _parse_roster, build_parser
 
 
 class CliTests(unittest.TestCase):
@@ -23,6 +23,40 @@ class CliTests(unittest.TestCase):
             ]
         )
         self.assertEqual(args.command, "analyze")
+
+    def test_parse_period_scores(self):
+        self.assertEqual(_parse_period_scores("16, 21,27,26"), [16, 21, 27, 26])
+
+    def test_period_scores_require_four_non_negative_values(self):
+        for value in ("1,2,3", "1,2,3,-1", "1,2,three,4"):
+            with self.subTest(value=value), self.assertRaises(SystemExit):
+                _parse_period_scores(value)
+
+    def test_analyze_accepts_written_score_context(self):
+        args = build_parser().parse_args(
+            [
+                "analyze",
+                "game.pdf",
+                "--roster-a",
+                "4,5,6,7,8",
+                "--roster-b",
+                "9,10,11,12,13",
+                "--team-a-name",
+                "CETAF B",
+                "--team-b-name",
+                "Saldanha",
+                "--period-scores-a",
+                "16,21,27,26",
+                "--period-scores-b",
+                "11,9,2,23",
+                "--final-score-a",
+                "90",
+                "--final-score-b",
+                "45",
+            ]
+        )
+        self.assertEqual(args.period_scores_a, "16,21,27,26")
+        self.assertEqual(args.final_score_b, 45)
 
     def test_analyze_accepts_optional_jev_model(self):
         args = build_parser().parse_args(

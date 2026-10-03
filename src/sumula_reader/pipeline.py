@@ -9,7 +9,7 @@ from .completeness import assess_core_fields
 from .decision import DecisionEngine
 from .fouls import extract_player_foul_data, extract_team_foul_indicators
 from .imaging import load_document, normalize_document
-from .models import DocumentMetadata, DocumentResult, TeamResult
+from .models import DocumentMetadata, DocumentResult, PeriodResult, TeamResult
 from .participation import extract_players
 from .recognition import (
     FoulRecognitionAdapter,
@@ -25,6 +25,9 @@ from .template import FECABA_V1, TemplateSpec
 @dataclass(slots=True)
 class AnalysisContext:
     rosters: dict[str, list[int]] = field(default_factory=dict)
+    team_names: dict[str, str] = field(default_factory=dict)
+    period_scores: dict[str, list[int]] = field(default_factory=dict)
+    final_scores: dict[str, int] = field(default_factory=dict)
     writer_id: str | None = None
     writer_known: bool = False
     writer_profile: WriterProfile | None = None
@@ -96,7 +99,12 @@ def analyze_image(
 
         teams[side] = TeamResult(
             side=side,
+            name=context.team_names.get(side),
             players=players,
+            periods=[
+                PeriodResult(number=index, written_score=score)
+                for index, score in enumerate(context.period_scores.get(side, ()), start=1)
+            ],
             scoring_events=[
                 event for event in scoring_events if event.team == side
             ],
@@ -106,6 +114,7 @@ def analyze_image(
                 template=template,
                 decision_engine=decision_engine,
             ),
+            written_final_score=context.final_scores.get(side),
         )
 
     result = DocumentResult(
