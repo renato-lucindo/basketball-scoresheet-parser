@@ -37,7 +37,7 @@ When work competes for time, prioritize it in this order:
 
 ## Current Milestone
 
-**Active milestone: M6 — FECABA v1.0.**
+**Completed milestone: M6 — FECABA v1.0.**
 
 M1 and M2 were completed on 2026-10-03. The M1 operational procedure and evidence format remain documented in [M1 — Trusted Evaluation Data](m1-evaluation.md).
 
@@ -51,24 +51,11 @@ M4 completion evidence: [M4 Status](m4-status.md).
 
 M5 completion evidence: [M5 Status](m5-status.md).
 
-Current release evidence: [M6 Status](m6-status.md).
+M6 completion evidence: [M6 Status](m6-status.md).
 
-M6 work is limited to producing a reproducible, documented, tested FECABA v1.0 release. The default work queue is:
+All pre-v1.0 milestones are complete. The release is documented in [FECABA v1.0 Release Record](release-v1.0.md). Post-v1.0 work may begin only through a new scoped goal that preserves the v1.0 quality policy.
 
-- validating installation and tests from a clean checkout;
-- freezing and documenting the public output contract and supported inputs;
-- recording the evaluation corpus, reports, and release quality policy;
-- preparing version and release notes;
-- creating the v1.0 tag only after every release gate is verified.
-
-The following work is frozen by default while M6 is active:
-
-- support for new scoresheet formats;
-- product surfaces such as dashboards, mobile apps, or SaaS features;
-- new parser features that do not remove a release blocker;
-- post-v1.0 format expansion and product surfaces.
-
-Declare M6 complete only after every M6 exit criterion below has evidence in the repository or release records. Tagging and publishing remain final release actions after the release commit is reviewed.
+The v1.0 acceptance policy remains `review_all` until independent evidence supports a safer and more useful threshold. New formats and product surfaces require a separate post-v1.0 decision.
 
 ## Goals Through v1.0
 
