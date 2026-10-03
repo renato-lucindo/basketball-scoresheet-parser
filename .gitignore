@@ -9,6 +9,7 @@ build/
 .codex/
 .coverage
 htmlcov/
+tmp/
 data/
 dataset/
 datasets/external/

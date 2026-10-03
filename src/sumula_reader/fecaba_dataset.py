@@ -86,6 +86,7 @@ def _empty_ground_truth(record: IngestedDocument) -> dict[str, object]:
         "game_id": record.document_id,
         "source_file": record.source_path,
         "writer_name": None,
+        "evaluation_split": None,
         "review": {
             "status": "pending",
             "reviewed_at": None,
@@ -96,6 +97,8 @@ def _empty_ground_truth(record: IngestedDocument) -> dict[str, object]:
                 "roster": [],
                 "team_fouls": dict(periods),
                 "individual_fouls": {},
+                "individual_fouls_reviewed": False,
+                "individual_foul_observations": {},
             }
             for side in ("A", "B")
         },
@@ -257,6 +260,11 @@ def _load_ground_truth(path: Path) -> dict[str, object]:
     scoring = payload.get("scoring")
     if not isinstance(scoring, list):
         raise ValueError(f"Campo scoring deve ser uma lista: {path}")
+    evaluation_split = payload.get("evaluation_split")
+    if evaluation_split not in {None, "train", "validation", "test"}:
+        raise ValueError(
+            f"evaluation_split deve ser train, validation, test ou null: {path}"
+        )
 
     for side in ("A", "B"):
         team = teams[side]
@@ -274,6 +282,80 @@ def _load_ground_truth(path: Path) -> dict[str, object]:
                 raise ValueError(
                     f"Falta atribuida a camisa {jersey_text} fora do roster {side}"
                 )
+        reviewed = team.get("individual_fouls_reviewed")
+        if reviewed not in {True, False}:
+            raise ValueError(
+                f"individual_fouls_reviewed for team {side} must be a boolean: {path}"
+            )
+        observations = team.get("individual_foul_observations", {})
+        if not isinstance(observations, dict):
+            raise ValueError(
+                f"individual_foul_observations for team {side} must be an object: {path}"
+            )
+        for jersey_text, entries in observations.items():
+            try:
+                jersey = int(jersey_text)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    f"Invalid observed-foul jersey for team {side}: {jersey_text!r}"
+                ) from exc
+            if roster and jersey not in roster:
+                raise ValueError(
+                    f"Observed foul assigned to jersey {jersey} outside roster {side}"
+                )
+            if not isinstance(entries, list):
+                raise ValueError(
+                    f"Observed fouls for team {side}, jersey {jersey} must be a list"
+                )
+            seen_slots: set[int] = set()
+            for entry in entries:
+                if not isinstance(entry, dict):
+                    raise ValueError(
+                        f"Observed foul for team {side}, jersey {jersey} must be an object"
+                    )
+                slot = entry.get("slot")
+                if not isinstance(slot, int) or slot < 1 or slot > 5:
+                    raise ValueError(
+                        f"Observed foul slot for team {side}, jersey {jersey} must be 1..5"
+                    )
+                if slot in seen_slots:
+                    raise ValueError(
+                        f"Duplicate observed foul slot for team {side}, jersey {jersey}: {slot}"
+                    )
+                seen_slots.add(slot)
+                symbol = entry.get("symbol")
+                if symbol is not None and (
+                    not isinstance(symbol, str) or not symbol.strip()
+                ):
+                    raise ValueError(
+                        f"Observed foul symbol for team {side}, jersey {jersey} must be text or null"
+                    )
+                candidates = entry.get("period_candidates")
+                if not isinstance(candidates, list) or not candidates or any(
+                    period not in {"Q1", "Q2", "Q3", "Q4"}
+                    for period in candidates
+                ):
+                    raise ValueError(
+                        f"Observed foul period_candidates for team {side}, jersey {jersey} are invalid"
+                    )
+                review_state = entry.get("review_state", "pending")
+                if review_state not in {"pending", "verified", "unresolved"}:
+                    raise ValueError(
+                        f"Observed foul review_state for team {side}, jersey {jersey} is invalid"
+                    )
+                if review_state == "verified" and (
+                    symbol is None or len(candidates) != 1
+                ):
+                    raise ValueError(
+                        f"Verified foul observation for team {side}, jersey {jersey} requires a symbol and one period"
+                    )
+                if review_state == "unresolved" and (
+                    not isinstance(entry.get("note"), str)
+                    or not entry["note"].strip()
+                ):
+                    raise ValueError(
+                        f"Unresolved foul observation for team {side}, jersey {jersey} requires a note"
+                    )
 
     for index, event in enumerate(scoring):
         if not isinstance(event, dict):
@@ -447,14 +529,35 @@ def _foul_labels(
     ground_truth: dict[str, object],
     side: str,
     jersey: int,
-) -> list[tuple[str, str]]:
+) -> dict[int, tuple[str, str]]:
     team = ground_truth["teams"][side]
     periods = team.get("individual_fouls", {}).get(str(jersey), {})
-    labels: list[tuple[str, str]] = []
+    labels: dict[int, tuple[str, str]] = {}
+    slot = 1
     for period in range(1, 5):
         period_name = f"Q{period}"
         for symbol in periods.get(period_name, []):
-            labels.append((period_name, str(symbol).upper().replace(" ", "")))
+            labels[slot] = (
+                period_name,
+                str(symbol).upper().replace(" ", ""),
+            )
+            slot += 1
+    observations = team.get("individual_foul_observations", {}).get(
+        str(jersey), []
+    )
+    for observation in observations:
+        candidates = observation.get("period_candidates")
+        symbol = observation.get("symbol")
+        if (
+            observation.get("review_state") == "verified"
+            and isinstance(symbol, str)
+            and isinstance(candidates, list)
+            and len(candidates) == 1
+        ):
+            labels[int(observation["slot"])] = (
+                str(candidates[0]),
+                symbol.upper().replace(" ", ""),
+            )
     return labels
 
 
@@ -488,7 +591,10 @@ def build_fecaba_crops(
         writer_id = _anonymous_writer_id(ground_truth.get("writer_name"))
         source = root / document["source_path"]
         normalized = normalize_document(load_document(source, dpi=dpi), FECABA_V1)
-        split = assign_document_split(document_id, writer_id=writer_id)
+        split = ground_truth.get("evaluation_split") or assign_document_split(
+            document_id,
+            writer_id=writer_id,
+        )
         scoring_labels = _scoring_labels(ground_truth)
 
         scoring_region = reviewed_region(geometry_overrides, document_id, "scoring_table")
@@ -601,7 +707,6 @@ def build_fecaba_crops(
                 )
                 separator = detect_half_separator(row, slots=grid.slots)
                 height = row.shape[0]
-                event_index = 0
                 for slot_index in range(grid.slots):
                     left = detected_foul_grid.x_lines[slot_index]
                     right = detected_foul_grid.x_lines[slot_index + 1]
@@ -662,12 +767,7 @@ def build_fecaba_crops(
                         first_half_slots=separator.first_half_slots,
                         color=color,
                     )
-                    expected = (
-                        expected_fouls[event_index]
-                        if event_index < len(expected_fouls)
-                        else None
-                    )
-                    event_index += 1
+                    expected = expected_fouls.get(slot_index + 1)
                     label = expected[1] if expected is not None else None
                     relative = (
                         Path("fouls")
