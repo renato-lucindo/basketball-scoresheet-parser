@@ -79,7 +79,7 @@ def _render_pdf(path: Path, *, dpi: int) -> np.ndarray:
     scale = dpi / 72.0
     with pymupdf.open(path) as document:
         if document.page_count < 1:
-            raise ValueError("O PDF nao possui paginas")
+            raise ValueError("The PDF has no pages")
         page = document.load_page(0)
         pix = page.get_pixmap(
             matrix=pymupdf.Matrix(scale, scale),
@@ -246,7 +246,7 @@ def _resize_fallback(image: np.ndarray, template: TemplateSpec) -> NormalizedDoc
 def _ensure_rgb(image: np.ndarray) -> np.ndarray:
     array = np.asarray(image)
     if array.ndim != 3 or array.shape[2] < 3:
-        raise ValueError("A imagem deve ter formato HxWx3")
+        raise ValueError("The image must have HxWx3 shape")
     return array[..., :3].astype(np.uint8, copy=False)
 
 

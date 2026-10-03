@@ -125,7 +125,7 @@ class TeamFoulIndicator:
 
     def __post_init__(self) -> None:
         if not 0 <= self.x_count <= 4:
-            raise ValueError("x_count deve estar entre 0 e 4")
+            raise ValueError("x_count must be between 0 and 4")
         if self.minimum_team_fouls is None:
             self.minimum_team_fouls = self.x_count
         if self.x_count == 4:
@@ -153,7 +153,7 @@ class PlayerResult:
 
     def __post_init__(self) -> None:
         if self.starter and not self.participated:
-            raise ValueError("starter=true exige participated=true")
+            raise ValueError("starter=true requires participated=true")
 
 
 @dataclass(slots=True)
