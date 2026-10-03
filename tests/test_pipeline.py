@@ -6,6 +6,7 @@ import numpy as np
 from sumula_reader.models import DecisionStatus, PlayerResult, TeamFoulIndicator
 from sumula_reader.participation import RosterExtraction
 from sumula_reader.pipeline import AnalysisContext, analyze_image
+from sumula_reader.written_scores import WrittenScoreCandidate
 
 
 class PipelineTests(unittest.TestCase):
@@ -64,6 +65,13 @@ class PipelineTests(unittest.TestCase):
             patch(
                 "sumula_reader.pipeline.extract_period_score_candidates",
                 return_value={"A": [], "B": []},
+            ),
+            patch(
+                "sumula_reader.pipeline.extract_final_score_candidates",
+                return_value={
+                    side: WrittenScoreCandidate(None, None, DecisionStatus.UNRESOLVED)
+                    for side in ("A", "B")
+                },
             ),
             patch("sumula_reader.pipeline.extract_players", side_effect=players),
             patch("sumula_reader.pipeline.extract_player_foul_data", return_value=([], [])),

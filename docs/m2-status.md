@@ -10,7 +10,7 @@ The public `analyze` command already accepts a FECABA image or PDF, normalizes i
 
 The command can recognize occupied roster rows with an optional handwriting model. Because M1 found no acceptance threshold that satisfies the quality gate, automatic jersey candidates remain in review and do not silently become players. Invalid and duplicate rows are unresolved. Callers can supply reviewed rosters as overrides. Team names, written period scores, and written final scores can also be supplied as explicit context while automatic extraction is developed.
 
-The same safety rule now applies to the eight written regular-period score cells. The parser crops and recognizes each cell, preserves the numeric candidate and confidence, and leaves it in review until a calibrated threshold satisfies the project quality gate. Reviewed `--period-scores-a` and `--period-scores-b` values remain accepted overrides and are reconciled against scoring events.
+The same safety rule now applies to the eight written regular-period score cells and both final-score cells. The parser crops and recognizes each cell, preserves the numeric candidate and confidence, and leaves it in review until a calibrated threshold satisfies the project quality gate. Reviewed period and final-score CLI values remain accepted overrides and are reconciled against scoring events.
 
 ## Core-field contract
 
@@ -35,7 +35,7 @@ The `analyze` command accepts the optional context arguments `--team-a-name`, `-
 ## Remaining M2 work
 
 - Extract team names automatically and validate roster-row occupancy against real held-out forms.
-- Calibrate written period-score recognition and add written final-score extraction.
+- Calibrate written period and final-score recognition against M1 data.
 - Define behavior when optional handwriting models are absent and keep every unavailable recognition result explicit.
 - Add a representative end-to-end image/PDF fixture that asserts the complete JSON structure.
 - Stabilize the documented output contract as automatic extraction replaces explicit context.
@@ -48,4 +48,4 @@ Run the full suite from a clean development environment:
 python -m pytest -q
 ```
 
-The current M2 branch passes 114 tests plus 3 parameterized subtests.
+The current M2 branch passes 115 tests plus 3 parameterized subtests.

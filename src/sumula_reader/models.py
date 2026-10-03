@@ -187,6 +187,9 @@ class TeamResult:
     team_fouls: list[TeamFoulIndicator] = field(default_factory=list)
     calculated_score: int = 0
     written_final_score: int | None = None
+    written_final_score_candidate: int | None = None
+    written_final_score_confidence: float | None = None
+    written_final_score_status: DecisionStatus = DecisionStatus.ACCEPTED
     status: DecisionStatus = DecisionStatus.ACCEPTED
     warnings: list[str] = field(default_factory=list)
 

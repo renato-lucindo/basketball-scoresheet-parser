@@ -46,6 +46,8 @@ The parser never overwrites a written score with a calculated value. Reconciliat
 
 `written_score_candidate` preserves automatic period-score recognition while its acceptance threshold is uncalibrated. A reviewed override is stored in `written_score`; the candidate remains separate so consumers cannot mistake it for accepted data.
 
+Final scores follow the same separation through `written_final_score`, `written_final_score_candidate`, `written_final_score_confidence`, and `written_final_score_status`.
+
 ## Core-field inventory
 
 `core_fields` makes M2 completeness machine-readable. It contains one entry for every required field on both teams:

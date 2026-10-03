@@ -83,6 +83,14 @@ def _team_fields(team: TeamResult) -> list[CoreFieldStatus]:
         for player in team.players
         for foul in player.fouls
     )
+    if team.written_final_score is not None:
+        final_score_status = team.written_final_score_status
+    elif team.written_final_score_candidate is not None:
+        final_score_status = team.written_final_score_status
+        if final_score_status is DecisionStatus.ACCEPTED:
+            final_score_status = DecisionStatus.REVIEW
+    else:
+        final_score_status = DecisionStatus.UNRESOLVED
 
     return [
         _field(f"teams.{side}.name", team.name is not None, "team name was not extracted"),
@@ -121,10 +129,10 @@ def _team_fields(team: TeamResult) -> list[CoreFieldStatus]:
             all(number in team_foul_periods for number in range(1, 5)),
             "team-foul indicators for all regular periods were not extracted",
         ),
-        _field(
-            f"teams.{side}.final_score",
-            team.written_final_score is not None,
-            "written final score was not extracted",
+        CoreFieldStatus(
+            path=f"teams.{side}.final_score",
+            status=final_score_status,
+            reason=(None if final_score_status is DecisionStatus.ACCEPTED else "written final score is unavailable or requires review"),
         ),
     ]
 

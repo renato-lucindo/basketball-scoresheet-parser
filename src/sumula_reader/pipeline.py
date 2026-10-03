@@ -26,7 +26,11 @@ from .recognition import (
 from .reconcile import reconcile_document
 from .scoring import extract_scoring_events
 from .template import FECABA_V1, TemplateSpec
-from .written_scores import extract_period_score_candidates
+from .written_scores import (
+    WrittenScoreCandidate,
+    extract_final_score_candidates,
+    extract_period_score_candidates,
+)
 
 
 @dataclass(slots=True)
@@ -106,6 +110,19 @@ def analyze_image(
             PeriodResult(number=index, written_score=score)
             for index, score in enumerate(scores, start=1)
         ]
+    final_score_results = extract_final_score_candidates(
+        normalized_image,
+        recognizer=handwriting,
+        template=template,
+        writer_id=context.writer_id,
+        writer_profile=context.writer_profile,
+    )
+    for side, score in context.final_scores.items():
+        final_score_results[side.upper()] = WrittenScoreCandidate(
+            value=score,
+            confidence=None,
+            status=DecisionStatus.ACCEPTED,
+        )
 
     teams: dict[str, TeamResult] = {}
     for side in ("A", "B"):
@@ -149,7 +166,14 @@ def analyze_image(
                 template=template,
                 decision_engine=decision_engine,
             ),
-            written_final_score=context.final_scores.get(side),
+            written_final_score=(
+                final_score_results[side].value
+                if final_score_results[side].status is DecisionStatus.ACCEPTED
+                else None
+            ),
+            written_final_score_candidate=final_score_results[side].value,
+            written_final_score_confidence=final_score_results[side].confidence,
+            written_final_score_status=final_score_results[side].status,
         )
 
     result = DocumentResult(

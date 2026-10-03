@@ -5,7 +5,12 @@ import numpy as np
 from sumula_reader.models import DecisionStatus
 from sumula_reader.recognition import RecognitionResult
 from sumula_reader.template import NormalizedRect, TemplateSpec
-from sumula_reader.written_scores import PERIOD_SCORE_CELLS, extract_period_score_candidates
+from sumula_reader.written_scores import (
+    FINAL_SCORE_CELLS,
+    PERIOD_SCORE_CELLS,
+    extract_final_score_candidates,
+    extract_period_score_candidates,
+)
 
 
 class WrittenScoreTests(unittest.TestCase):
@@ -18,7 +23,10 @@ class WrittenScoreTests(unittest.TestCase):
             template_id="test",
             canonical_width=1000,
             canonical_height=100,
-            regions={"period_scores": NormalizedRect(0, 0, 1, 1)},
+            regions={
+                "period_scores": NormalizedRect(0, 0, 1, 1),
+                "final_score": NormalizedRect(0, 0, 1, 1),
+            },
         )
 
     def test_uncalibrated_scores_remain_review_candidates(self):
@@ -56,6 +64,22 @@ class WrittenScoreTests(unittest.TestCase):
         self.assertTrue(
             all(period.status is DecisionStatus.ACCEPTED for period in results["B"])
         )
+
+    def test_final_scores_remain_review_candidates(self):
+        image = np.full((100, 1000, 3), 255, dtype=np.uint8)
+        for rect in FINAL_SCORE_CELLS.values():
+            left, top, right, bottom = rect.pixels(1000, 100)
+            image[top + 2 : bottom - 2, left + 2 : right - 2] = (20, 60, 190)
+
+        results = extract_final_score_candidates(
+            image,
+            recognizer=_SequenceRecognizer([90, 45]),
+            template=self.template,
+        )
+
+        self.assertEqual(results["A"].value, 90)
+        self.assertEqual(results["B"].value, 45)
+        self.assertEqual(results["A"].status, DecisionStatus.REVIEW)
 
 
 class _SequenceRecognizer:

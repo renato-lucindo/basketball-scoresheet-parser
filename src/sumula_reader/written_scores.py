@@ -18,6 +18,13 @@ class PeriodScoreCell:
     rect: NormalizedRect
 
 
+@dataclass(slots=True)
+class WrittenScoreCandidate:
+    value: int | None
+    confidence: float | None
+    status: DecisionStatus
+
+
 PERIOD_SCORE_CELLS = (
     PeriodScoreCell("A", 1, NormalizedRect(0.245, 0.22, 0.080, 0.30)),
     PeriodScoreCell("B", 1, NormalizedRect(0.345, 0.22, 0.080, 0.30)),
@@ -28,6 +35,11 @@ PERIOD_SCORE_CELLS = (
     PeriodScoreCell("A", 4, NormalizedRect(0.690, 0.53, 0.090, 0.32)),
     PeriodScoreCell("B", 4, NormalizedRect(0.820, 0.53, 0.090, 0.32)),
 )
+
+FINAL_SCORE_CELLS = {
+    "A": NormalizedRect(0.450, 0.18, 0.140, 0.38),
+    "B": NormalizedRect(0.650, 0.18, 0.140, 0.38),
+}
 
 
 def extract_period_score_candidates(
@@ -82,6 +94,59 @@ def extract_period_score_candidates(
                 confidence=recognition.confidence,
                 status=status,
             )
+        )
+    return results
+
+
+def extract_final_score_candidates(
+    normalized_image: np.ndarray,
+    *,
+    recognizer: HandwritingRecognizer | None,
+    template: TemplateSpec = FECABA_V1,
+    writer_id: str | None = None,
+    writer_profile: WriterProfile | None = None,
+    acceptance_threshold: float | None = None,
+    min_colored_ink_ratio: float = 0.004,
+) -> dict[str, WrittenScoreCandidate]:
+    """Read final-score cells while preserving uncalibrated candidates."""
+
+    unresolved = {
+        side: WrittenScoreCandidate(None, None, DecisionStatus.UNRESOLVED)
+        for side in ("A", "B")
+    }
+    if recognizer is None:
+        return unresolved
+
+    block = crop_region(normalized_image, template.region("final_score"))
+    labels: Sequence[str] = tuple(str(number) for number in range(100))
+    results: dict[str, WrittenScoreCandidate] = {}
+    for side, rect in FINAL_SCORE_CELLS.items():
+        crop = crop_region(block, rect)
+        if _colored_ink_ratio(crop) < min_colored_ink_ratio:
+            results[side] = unresolved[side]
+            continue
+        recognition = recognizer.recognize(
+            crop,
+            field_type="jersey",
+            allowed_labels=labels,
+            writer_id=writer_id,
+        )
+        recognition = apply_writer_profile(recognition, writer_profile)
+        candidate = _score_value(recognition.value)
+        if candidate is None:
+            status = DecisionStatus.UNRESOLVED
+        elif (
+            acceptance_threshold is not None
+            and recognition.status is DecisionStatus.ACCEPTED
+            and recognition.confidence >= acceptance_threshold
+        ):
+            status = DecisionStatus.ACCEPTED
+        else:
+            status = DecisionStatus.REVIEW
+        results[side] = WrittenScoreCandidate(
+            value=candidate,
+            confidence=recognition.confidence,
+            status=status,
         )
     return results
 
