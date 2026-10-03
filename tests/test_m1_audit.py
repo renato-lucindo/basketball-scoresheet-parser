@@ -281,6 +281,13 @@ class M1AuditTests(unittest.TestCase):
 
             self.assertEqual(result["corpus_sha256"], audit["corpus_sha256"])
             self.assertEqual(result["metrics"]["accepted_error_rate"], 0.0)
+            self.assertEqual(result["metrics"]["review_rate"], 0.0)
+            self.assertIn("scoring_jersey", result["field_type_metrics"])
+            self.assertTrue(
+                result["field_type_metrics"]["scoring_jersey"]["quality_gate"][
+                    "threshold_found"
+                ]
+            )
             updated = audit_fecaba_dataset(root)
             self.assertTrue(updated["exit_criteria"]["baseline_metrics_reproducible"])
 
@@ -335,6 +342,49 @@ class M1AuditTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "do not cover every reviewed test document"):
                 build_baseline_metrics(root, predictions)
 
+    def test_baseline_reviews_everything_when_no_threshold_is_safe(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            document_id = self._dataset(
+                root,
+                reviewed=True,
+                evaluation_split="test",
+            )
+            predictions = root / "predictions.jsonl"
+            _write_jsonl(
+                predictions,
+                [
+                    {
+                        "document_id": document_id,
+                        "field_id": "final_score:A",
+                        "field_type": "final_score",
+                        "expected": "10",
+                        "predicted": "9",
+                        "confidence": 1.0,
+                    },
+                    {
+                        "document_id": document_id,
+                        "field_id": "final_score:B",
+                        "field_type": "final_score",
+                        "expected": "8",
+                        "predicted": None,
+                        "confidence": 0.0,
+                    },
+                ],
+            )
+
+            result = build_baseline_metrics(root, predictions)
+
+            self.assertFalse(result["quality_gate"]["threshold_found"])
+            self.assertEqual(result["quality_gate"]["acceptance_policy"], "review_all")
+            self.assertGreater(result["metrics"]["threshold"], 1.0)
+            self.assertEqual(result["metrics"]["accepted"], 0)
+            self.assertEqual(result["metrics"]["accepted_error_rate"], 0.0)
+            self.assertEqual(
+                result["end_to_end"]["decision_state_counts"],
+                {"accepted": 0, "review": 1, "unresolved": 1},
+            )
+
     def test_prediction_generator_covers_reviewed_core_fields(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -375,11 +425,22 @@ class M1AuditTests(unittest.TestCase):
                 json.loads(line)
                 for line in predictions.read_text(encoding="utf-8").splitlines()
             ]
-            self.assertEqual(summary["prediction_records"], 18)
-            self.assertEqual(len({row["field_id"] for row in rows}), 18)
+            self.assertEqual(summary["prediction_records"], 32)
+            self.assertEqual(len({row["field_id"] for row in rows}), 32)
+            self.assertEqual(
+                {row["prediction_source"]["mode"] for row in rows},
+                {"deterministic_without_handwriting_models"},
+            )
             self.assertEqual(
                 {row["field_type"] for row in rows},
-                {"period_score", "final_score", "team_fouls"},
+                {
+                    "roster_jersey",
+                    "period_score",
+                    "written_period_score",
+                    "final_score",
+                    "written_final_score",
+                    "team_fouls",
+                },
             )
 
 

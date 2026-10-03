@@ -33,7 +33,7 @@ class DatasetTests(unittest.TestCase):
                 "split": "test",
             },
         ]
-        with self.assertRaisesRegex(ValueError, "apontadores=writer_abc"):
+        with self.assertRaisesRegex(ValueError, "scorers=writer_abc"):
             validate_split_isolation(records)
 
 

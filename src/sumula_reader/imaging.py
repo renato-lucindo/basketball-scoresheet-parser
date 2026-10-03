@@ -70,7 +70,7 @@ def _render_pdf(path: Path, *, dpi: int) -> np.ndarray:
             )
             if completed.returncode != 0:
                 raise RuntimeError(
-                    "Falha ao renderizar PDF com pdftoppm: "
+                    "Failed to render PDF with pdftoppm: "
                     + completed.stderr.strip()
                 )
             with Image.open(output_base.with_suffix(".png")) as image:
@@ -98,9 +98,9 @@ def normalize_document(
     """Alinha a folha ao tamanho canonico do template.
 
     O caminho preferencial procura o maior quadrilatero que represente a
-    borda externa da sumula e aplica homografia. Em modo nao estrito, se a
-    borda nao puder ser localizada, apenas redimensiona a imagem e marca que
-    nao houve warp; isso e util no modo debug durante a calibracao.
+    outer scoresheet border and applies a homography. In non-strict mode, if
+    the border cannot be found, it resizes the image and records that no warp
+    occurred; this is useful while calibrating in debug mode.
     """
     rgb = _ensure_rgb(image)
     try:
@@ -121,7 +121,7 @@ def normalize_document(
                 method="pillow_quad",
             )
         if strict:
-            raise ValueError("Nao foi possivel localizar a borda da sumula")
+            raise ValueError("Could not locate the scoresheet border")
         return _resize_fallback(rgb, template)
 
     corners = _find_document_corners(rgb, cv2)
@@ -141,7 +141,7 @@ def normalize_document(
                 method="pillow_quad",
             )
         if strict:
-            raise ValueError("Nao foi possivel localizar a borda da sumula")
+            raise ValueError("Could not locate the scoresheet border")
         resized = cv2.resize(
             rgb,
             (template.canonical_width, template.canonical_height),
@@ -255,7 +255,7 @@ def _cv2():
         import cv2  # type: ignore
     except ImportError as exc:
         raise VisionDependencyError(
-            "OpenCV nao esta instalado. Instale com: pip install -e .[vision]"
+            "OpenCV is not installed. Install it with: pip install -e .[vision]"
         ) from exc
     return cv2
 
@@ -283,7 +283,7 @@ def _find_document_corners(image: np.ndarray, cv2) -> np.ndarray | None:
 
 
 def _find_document_corners_numpy(image: np.ndarray) -> np.ndarray | None:
-    """Localiza as quatro bordas externas sem depender de OpenCV.
+    """Locate the four outer borders without depending on OpenCV.
 
     A folha FECABA possui uma moldura escura longa. Para cada faixa esperada
     (esquerda, direita, topo e base), coletamos a posicao do primeiro pixel

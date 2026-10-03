@@ -44,7 +44,7 @@ class EndToEndTests(unittest.TestCase):
             )
 
         payload = result.to_dict()
-        self.assertEqual(payload["schema_version"], "0.1")
+        self.assertEqual(payload["schema_version"], "1.0")
         self.assertEqual(set(payload["teams"]), {"A", "B"})
         self.assertEqual(len(payload["core_fields"]), 18)
         self.assertEqual(len(payload["teams"]["A"]["players"]), 5)

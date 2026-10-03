@@ -1,74 +1,108 @@
 {
   "capture_condition_metrics": {
-    "pdf_scan": {
+    "camera_image": {
       "decision_states": {
-        "candidate_coverage": 0.3548387096774194,
-        "candidate_decisions": 66,
+        "candidate_coverage": 0.20754716981132076,
+        "candidate_decisions": 44,
         "decision_state_counts": {
           "accepted": 0,
-          "review": 66,
-          "unresolved": 120
+          "review": 44,
+          "unresolved": 168
         },
         "decision_state_rates": {
           "accepted": 0.0,
-          "review": 0.3548387096774194,
-          "unresolved": 0.6451612903225806
+          "review": 0.20754716981132076,
+          "unresolved": 0.7924528301886793
         },
-        "required_decisions": 186
+        "required_decisions": 212
       },
       "metrics": {
         "accepted": 0,
         "accepted_error_rate": 0.0,
         "accepted_errors": 0,
         "automation_rate": 0.0,
-        "global_accuracy": 0.10752688172043011,
+        "global_accuracy": 0.06132075471698113,
         "review_rate": 1.0,
-        "reviewed": 186,
+        "reviewed": 212,
         "threshold": 1.0000000000000002,
-        "total": 186
+        "total": 212
+      }
+    },
+    "pdf_scan": {
+      "decision_states": {
+        "candidate_coverage": 0.365,
+        "candidate_decisions": 146,
+        "decision_state_counts": {
+          "accepted": 0,
+          "review": 146,
+          "unresolved": 254
+        },
+        "decision_state_rates": {
+          "accepted": 0.0,
+          "review": 0.365,
+          "unresolved": 0.635
+        },
+        "required_decisions": 400
+      },
+      "metrics": {
+        "accepted": 0,
+        "accepted_error_rate": 0.0,
+        "accepted_errors": 0,
+        "automation_rate": 0.0,
+        "global_accuracy": 0.155,
+        "review_rate": 1.0,
+        "reviewed": 400,
+        "threshold": 1.0000000000000002,
+        "total": 400
       }
     }
   },
   "corpus_sha256": "92f9e8d1124a2839b2029bc4e55d66309800629916c38e07d9031f2e4a726ba7",
   "eligible_test_documents": [
-    "sub13-alvares-x-ivv-u13-04-07-904697f7"
+    "sub13-alvares-x-ivv-u13-04-07-904697f7",
+    "sub15-alvares-x-saldanha-u15m-e063092c",
+    "sub17-alvares-x-saldanha-u17m-39661215"
   ],
   "end_to_end": {
-    "candidate_coverage": 0.3548387096774194,
-    "candidate_decisions": 66,
+    "candidate_coverage": 0.3104575163398693,
+    "candidate_decisions": 190,
     "decision_state_counts": {
       "accepted": 0,
-      "review": 66,
-      "unresolved": 120
+      "review": 190,
+      "unresolved": 422
     },
     "decision_state_rates": {
       "accepted": 0.0,
-      "review": 0.3548387096774194,
-      "unresolved": 0.6451612903225806
+      "review": 0.3104575163398693,
+      "unresolved": 0.6895424836601307
     },
-    "required_decisions": 186
+    "required_decisions": 612
   },
+  "evaluation_splits": [
+    "validation",
+    "test"
+  ],
   "field_type_counts": {
-    "final_score": 2,
+    "final_score": 6,
     "individual_foul_period": 14,
     "individual_foul_symbol": 14,
-    "period_score": 8,
-    "roster_jersey": 22,
-    "scoring_jersey": 36,
-    "scoring_period": 36,
-    "scoring_points": 36,
-    "team_fouls": 8,
-    "written_final_score": 2,
-    "written_period_score": 8
+    "period_score": 24,
+    "roster_jersey": 70,
+    "scoring_jersey": 142,
+    "scoring_period": 144,
+    "scoring_points": 144,
+    "team_fouls": 24,
+    "written_final_score": 6,
+    "written_period_score": 24
   },
   "field_type_metrics": {
     "final_score": {
       "decision_states": {
         "candidate_coverage": 1.0,
-        "candidate_decisions": 2,
+        "candidate_decisions": 6,
         "decision_state_counts": {
           "accepted": 0,
-          "review": 2,
+          "review": 6,
           "unresolved": 0
         },
         "decision_state_rates": {
@@ -76,7 +110,7 @@
           "review": 1.0,
           "unresolved": 0.0
         },
-        "required_decisions": 2
+        "required_decisions": 6
       },
       "metrics": {
         "accepted": 0,
@@ -85,9 +119,9 @@
         "automation_rate": 0.0,
         "global_accuracy": 0.0,
         "review_rate": 1.0,
-        "reviewed": 2,
+        "reviewed": 6,
         "threshold": 1.0000000000000002,
-        "total": 2
+        "total": 6
       },
       "quality_gate": {
         "acceptance_policy": "review_all",
@@ -167,10 +201,10 @@
     "period_score": {
       "decision_states": {
         "candidate_coverage": 1.0,
-        "candidate_decisions": 8,
+        "candidate_decisions": 24,
         "decision_state_counts": {
           "accepted": 0,
-          "review": 8,
+          "review": 24,
           "unresolved": 0
         },
         "decision_state_rates": {
@@ -178,7 +212,7 @@
           "review": 1.0,
           "unresolved": 0.0
         },
-        "required_decisions": 8
+        "required_decisions": 24
       },
       "metrics": {
         "accepted": 0,
@@ -187,9 +221,9 @@
         "automation_rate": 0.0,
         "global_accuracy": 0.0,
         "review_rate": 1.0,
-        "reviewed": 8,
+        "reviewed": 24,
         "threshold": 1.0000000000000002,
-        "total": 8
+        "total": 24
       },
       "quality_gate": {
         "acceptance_policy": "review_all",
@@ -205,14 +239,14 @@
         "decision_state_counts": {
           "accepted": 0,
           "review": 0,
-          "unresolved": 22
+          "unresolved": 70
         },
         "decision_state_rates": {
           "accepted": 0.0,
           "review": 0.0,
           "unresolved": 1.0
         },
-        "required_decisions": 22
+        "required_decisions": 70
       },
       "metrics": {
         "accepted": 0,
@@ -221,9 +255,9 @@
         "automation_rate": 0.0,
         "global_accuracy": 0.0,
         "review_rate": 1.0,
-        "reviewed": 22,
+        "reviewed": 70,
         "threshold": 1.0000000000000002,
-        "total": 22
+        "total": 70
       },
       "quality_gate": {
         "acceptance_policy": "review_all",
@@ -239,14 +273,14 @@
         "decision_state_counts": {
           "accepted": 0,
           "review": 0,
-          "unresolved": 36
+          "unresolved": 142
         },
         "decision_state_rates": {
           "accepted": 0.0,
           "review": 0.0,
           "unresolved": 1.0
         },
-        "required_decisions": 36
+        "required_decisions": 142
       },
       "metrics": {
         "accepted": 0,
@@ -255,9 +289,9 @@
         "automation_rate": 0.0,
         "global_accuracy": 0.0,
         "review_rate": 1.0,
-        "reviewed": 36,
+        "reviewed": 142,
         "threshold": 1.0000000000000002,
-        "total": 36
+        "total": 142
       },
       "quality_gate": {
         "acceptance_policy": "review_all",
@@ -268,64 +302,64 @@
     },
     "scoring_period": {
       "decision_states": {
-        "candidate_coverage": 0.6388888888888888,
-        "candidate_decisions": 23,
+        "candidate_coverage": 0.4652777777777778,
+        "candidate_decisions": 67,
         "decision_state_counts": {
-          "accepted": 0,
-          "review": 23,
-          "unresolved": 13
+          "accepted": 16,
+          "review": 51,
+          "unresolved": 77
         },
         "decision_state_rates": {
-          "accepted": 0.0,
-          "review": 0.6388888888888888,
-          "unresolved": 0.3611111111111111
+          "accepted": 0.1111111111111111,
+          "review": 0.3541666666666667,
+          "unresolved": 0.5347222222222222
         },
-        "required_decisions": 36
+        "required_decisions": 144
       },
       "metrics": {
-        "accepted": 0,
+        "accepted": 16,
         "accepted_error_rate": 0.0,
         "accepted_errors": 0,
-        "automation_rate": 0.0,
-        "global_accuracy": 0.3888888888888889,
-        "review_rate": 1.0,
-        "reviewed": 36,
-        "threshold": 1.0000000000000002,
-        "total": 36
+        "automation_rate": 0.1111111111111111,
+        "global_accuracy": 0.3611111111111111,
+        "review_rate": 0.8888888888888888,
+        "reviewed": 128,
+        "threshold": 0.744,
+        "total": 144
       },
       "quality_gate": {
-        "acceptance_policy": "review_all",
+        "acceptance_policy": "threshold",
         "max_accepted_error_rate": 0.01,
         "min_automation_rate": 0.1,
-        "threshold_found": false
+        "threshold_found": true
       }
     },
     "scoring_points": {
       "decision_states": {
-        "candidate_coverage": 0.6388888888888888,
-        "candidate_decisions": 23,
+        "candidate_coverage": 0.4652777777777778,
+        "candidate_decisions": 67,
         "decision_state_counts": {
           "accepted": 0,
-          "review": 23,
-          "unresolved": 13
+          "review": 67,
+          "unresolved": 77
         },
         "decision_state_rates": {
           "accepted": 0.0,
-          "review": 0.6388888888888888,
-          "unresolved": 0.3611111111111111
+          "review": 0.4652777777777778,
+          "unresolved": 0.5347222222222222
         },
-        "required_decisions": 36
+        "required_decisions": 144
       },
       "metrics": {
         "accepted": 0,
         "accepted_error_rate": 0.0,
         "accepted_errors": 0,
         "automation_rate": 0.0,
-        "global_accuracy": 0.1111111111111111,
+        "global_accuracy": 0.1388888888888889,
         "review_rate": 1.0,
-        "reviewed": 36,
+        "reviewed": 144,
         "threshold": 1.0000000000000002,
-        "total": 36
+        "total": 144
       },
       "quality_gate": {
         "acceptance_policy": "review_all",
@@ -337,10 +371,10 @@
     "team_fouls": {
       "decision_states": {
         "candidate_coverage": 1.0,
-        "candidate_decisions": 8,
+        "candidate_decisions": 24,
         "decision_state_counts": {
           "accepted": 0,
-          "review": 8,
+          "review": 24,
           "unresolved": 0
         },
         "decision_state_rates": {
@@ -348,18 +382,18 @@
           "review": 1.0,
           "unresolved": 0.0
         },
-        "required_decisions": 8
+        "required_decisions": 24
       },
       "metrics": {
         "accepted": 0,
         "accepted_error_rate": 0.0,
         "accepted_errors": 0,
         "automation_rate": 0.0,
-        "global_accuracy": 0.25,
+        "global_accuracy": 0.125,
         "review_rate": 1.0,
-        "reviewed": 8,
+        "reviewed": 24,
         "threshold": 1.0000000000000002,
-        "total": 8
+        "total": 24
       },
       "quality_gate": {
         "acceptance_policy": "review_all",
@@ -375,14 +409,14 @@
         "decision_state_counts": {
           "accepted": 0,
           "review": 0,
-          "unresolved": 2
+          "unresolved": 6
         },
         "decision_state_rates": {
           "accepted": 0.0,
           "review": 0.0,
           "unresolved": 1.0
         },
-        "required_decisions": 2
+        "required_decisions": 6
       },
       "metrics": {
         "accepted": 0,
@@ -391,9 +425,9 @@
         "automation_rate": 0.0,
         "global_accuracy": 0.0,
         "review_rate": 1.0,
-        "reviewed": 2,
+        "reviewed": 6,
         "threshold": 1.0000000000000002,
-        "total": 2
+        "total": 6
       },
       "quality_gate": {
         "acceptance_policy": "review_all",
@@ -409,14 +443,14 @@
         "decision_state_counts": {
           "accepted": 0,
           "review": 0,
-          "unresolved": 8
+          "unresolved": 24
         },
         "decision_state_rates": {
           "accepted": 0.0,
           "review": 0.0,
           "unresolved": 1.0
         },
-        "required_decisions": 8
+        "required_decisions": 24
       },
       "metrics": {
         "accepted": 0,
@@ -425,9 +459,9 @@
         "automation_rate": 0.0,
         "global_accuracy": 0.0,
         "review_rate": 1.0,
-        "reviewed": 8,
+        "reviewed": 24,
         "threshold": 1.0000000000000002,
-        "total": 8
+        "total": 24
       },
       "quality_gate": {
         "acceptance_policy": "review_all",
@@ -442,13 +476,13 @@
     "accepted_error_rate": 0.0,
     "accepted_errors": 0,
     "automation_rate": 0.0,
-    "global_accuracy": 0.10752688172043011,
+    "global_accuracy": 0.12254901960784313,
     "review_rate": 1.0,
-    "reviewed": 186,
+    "reviewed": 612,
     "threshold": 1.0000000000000002,
-    "total": 186
+    "total": 612
   },
-  "prediction_records": 186,
+  "prediction_records": 612,
   "prediction_source": {
     "mode": "deterministic_without_handwriting_models"
   },
@@ -459,7 +493,9 @@
     "threshold_found": false
   },
   "test_documents": [
-    "sub13-alvares-x-ivv-u13-04-07-904697f7"
+    "sub13-alvares-x-ivv-u13-04-07-904697f7",
+    "sub15-alvares-x-saldanha-u15m-e063092c",
+    "sub17-alvares-x-saldanha-u17m-39661215"
   ],
   "writer_generalization_metrics": {
     "seen_in_training": {
@@ -492,30 +528,30 @@
     },
     "unseen_in_training": {
       "decision_states": {
-        "candidate_coverage": 0.3548387096774194,
-        "candidate_decisions": 66,
+        "candidate_coverage": 0.3104575163398693,
+        "candidate_decisions": 190,
         "decision_state_counts": {
           "accepted": 0,
-          "review": 66,
-          "unresolved": 120
+          "review": 190,
+          "unresolved": 422
         },
         "decision_state_rates": {
           "accepted": 0.0,
-          "review": 0.3548387096774194,
-          "unresolved": 0.6451612903225806
+          "review": 0.3104575163398693,
+          "unresolved": 0.6895424836601307
         },
-        "required_decisions": 186
+        "required_decisions": 612
       },
       "metrics": {
         "accepted": 0,
         "accepted_error_rate": 0.0,
         "accepted_errors": 0,
         "automation_rate": 0.0,
-        "global_accuracy": 0.10752688172043011,
+        "global_accuracy": 0.12254901960784313,
         "review_rate": 1.0,
-        "reviewed": 186,
+        "reviewed": 612,
         "threshold": 1.0000000000000002,
-        "total": 186
+        "total": 612
       }
     }
   },
@@ -525,11 +561,11 @@
       "accepted_error_rate": 0.0,
       "accepted_errors": 0,
       "automation_rate": 0.0,
-      "global_accuracy": 0.10752688172043011,
+      "global_accuracy": 0.12254901960784313,
       "review_rate": 1.0,
-      "reviewed": 186,
+      "reviewed": 612,
       "threshold": 1.0000000000000002,
-      "total": 186
+      "total": 612
     },
     "unknown_writer": {
       "accepted": 0,

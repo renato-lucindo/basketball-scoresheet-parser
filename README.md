@@ -21,6 +21,8 @@ The project prioritizes correctness over raw automation: uncertain observations 
 - Dataset and review workflows
 - Confidence-based validation
 
+The [human review workflow](docs/review-workflow.md) explains how candidates move through Label Studio and return as hash-validated reusable data.
+
 ## Technology Stack
 
 - Python 3.11+
@@ -34,6 +36,12 @@ The project prioritizes correctness over raw automation: uncertain observations 
 The pipeline is organized into normalization, extraction, recognition, validation, and structured output stages.
 
 The [structured output contract](docs/output-schema.md) documents decision states, team results, and the machine-readable core-field completeness inventory.
+
+### Supported inputs
+
+FECABA v1.0 supports single-page FECABA scoresheets supplied as PDF, PNG, JPG, or JPEG. The normalizer handles full-document camera images and PDF scans, including perspective correction when the outer border is detectable. Multi-page documents, arbitrary basketball forms, and severely cropped sources are outside the v1.0 contract.
+
+Automatic recognition currently uses a `review_all` acceptance policy because the held-out evidence does not support a safe global automation threshold. The parser still returns candidates, confidence, validation findings, and explicit review/unresolved states. See the [v1.0 release evidence](docs/release-v1.0.md).
 
 ## Getting Started
 
@@ -76,7 +84,7 @@ Automatic roster recognition currently emits review candidates because M1 found 
 - Make human review efficient and reproducible
 - Release FECABA v1.0 before expanding to additional scoresheet formats
 
-Detailed milestones and scope boundaries are maintained in [Project Goals](docs/project-goals.md).
+FECABA v1.0 milestone evidence is recorded in [Project Goals](docs/project-goals.md) and the [v1.0 release record](docs/release-v1.0.md).
 
 ## Contributing
 

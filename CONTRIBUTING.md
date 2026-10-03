@@ -29,3 +29,5 @@ Include the motivation, changes, validation performed, and relevant examples.
 ## Contributions
 
 Code, documentation, testing, datasets, examples, and issue discussions are welcome.
+
+Dataset contributions must follow the [human review workflow](docs/review-workflow.md). Do not commit raw scoresheets, generated review media, or model checkpoints.

@@ -211,7 +211,7 @@ class CoreFieldStatus:
 
 @dataclass(slots=True)
 class DocumentResult:
-    schema_version: str = "0.1"
+    schema_version: str = "1.0"
     metadata: DocumentMetadata = field(default_factory=DocumentMetadata)
     teams: dict[str, TeamResult] = field(default_factory=dict)
     core_fields: list[CoreFieldStatus] = field(default_factory=list)

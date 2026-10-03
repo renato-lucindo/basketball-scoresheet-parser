@@ -15,6 +15,7 @@ from sumula_reader.label_studio_review import (
     prepare_review,
     review_status,
     reviewed_region,
+    _validate_final_label,
 )
 
 
@@ -49,6 +50,12 @@ def _make_dataset(root: Path) -> tuple[str, str]:
 
 
 class LabelStudioReviewTests(unittest.TestCase):
+    def test_invalid_review_labels_are_rejected(self):
+        with self.assertRaisesRegex(ValueError, "Invalid jersey number"):
+            _validate_final_label("jersey", "100", "crop-1")
+        with self.assertRaisesRegex(ValueError, "Invalid foul"):
+            _validate_final_label("foul_symbol", "unknown", "crop-2")
+
     def test_geometry_prepare_and_import_create_reviewed_overrides(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -251,7 +258,26 @@ class LabelStudioReviewTests(unittest.TestCase):
             export = root / "stale.json"
             export.write_text(json.dumps(tasks), encoding="utf-8")
 
-            with self.assertRaisesRegex(ValueError, "Versao da sumula divergente"):
+            with self.assertRaisesRegex(ValueError, "Scoresheet version mismatch"):
+                import_review(root, export, stage="geometry")
+
+    def test_import_rejects_duplicate_review_tasks(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            _make_dataset(root)
+            prepare_review(root, stage="geometry", dpi=100)
+            tasks = json.loads((root / "review" / "geometry.tasks.json").read_text())
+            task = tasks[0]
+            task["annotations"] = [
+                {"result": task["predictions"][0]["result"]}
+            ]
+            export = root / "duplicate.json"
+            export.write_text(
+                json.dumps([task, json.loads(json.dumps(task))]),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(ValueError, "Duplicate document in export"):
                 import_review(root, export, stage="geometry")
 
     def test_geometry_import_accepts_label_studio_uploaded_png_export(self):

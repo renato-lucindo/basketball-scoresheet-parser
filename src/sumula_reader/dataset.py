@@ -32,18 +32,18 @@ def assign_document_split(
     train_ratio: float = 0.70,
     validation_ratio: float = 0.15,
 ) -> str:
-    """Divide por documento/apontador, nunca por crop.
+    """Split by document or scorer, never by crop.
 
-    Quando o apontador e conhecido, ele passa a ser a unidade de agrupamento:
-    todas as sumulas escritas pela mesma pessoa ficam no mesmo split. Sem
-    ``writer_id``, preservamos o comportamento historico baseado no documento.
+    When the scorer is known, that identity becomes the grouping unit so every
+    scoresheet written by the same person remains in one split. Without a
+    ``writer_id``, the historical document-based behavior is preserved.
     """
     if not 0 < train_ratio < 1:
-        raise ValueError("train_ratio deve estar entre 0 e 1")
+        raise ValueError("train_ratio must be between 0 and 1")
     if not 0 <= validation_ratio < 1:
-        raise ValueError("validation_ratio deve estar entre 0 e 1")
+        raise ValueError("validation_ratio must be between 0 and 1")
     if train_ratio + validation_ratio >= 1:
-        raise ValueError("train + validation deve deixar espaco para test")
+        raise ValueError("train + validation must leave room for test")
 
     split_key = document_id if writer_id is None else f"writer:{writer_id}"
     digest = hashlib.sha256(f"{seed}:{split_key}".encode("utf-8")).digest()
@@ -56,7 +56,7 @@ def assign_document_split(
 
 
 def validate_split_isolation(records: list[dict[str, object]]) -> None:
-    """Falha se documento ou apontador aparecerem em mais de um split."""
+    """Fail if a document or scorer appears in more than one split."""
     document_splits: dict[str, set[str]] = {}
     writer_splits: dict[str, set[str]] = {}
     for record in records:
@@ -81,10 +81,10 @@ def validate_split_isolation(records: list[dict[str, object]]) -> None:
     if leaked_documents or leaked_writers:
         details: list[str] = []
         if leaked_documents:
-            details.append("documentos=" + ",".join(leaked_documents))
+            details.append("documents=" + ",".join(leaked_documents))
         if leaked_writers:
-            details.append("apontadores=" + ",".join(leaked_writers))
-        raise ValueError("Vazamento entre splits: " + "; ".join(details))
+            details.append("scorers=" + ",".join(leaked_writers))
+        raise ValueError("Split leakage: " + "; ".join(details))
 
 
 def save_annotated_crop(
@@ -93,7 +93,7 @@ def save_annotated_crop(
     root: str | Path,
     record: DatasetRecord,
 ) -> Path:
-    """Salva crop + JSONL sem exigir nome real do apontador."""
+    """Save a crop and JSONL record without requiring the scorer's real name."""
     base = Path(root)
     crop_path = base / record.crop_path
     crop_path.parent.mkdir(parents=True, exist_ok=True)

@@ -42,7 +42,7 @@ def _torch() -> tuple[Any, Any, Any, Any, Any]:
         from torchvision import datasets, transforms
     except (ImportError, RuntimeError) as exc:
         raise RuntimeError(
-            "Reconhecimento manuscrito requer torch e torchvision compativeis"
+            "Handwriting recognition requires compatible torch and torchvision installations"
         ) from exc
     return torch, Dataset, ConcatDataset, DataLoader, (datasets, transforms)
 
@@ -129,7 +129,7 @@ def prepare_handwriting_image(image: np.ndarray) -> Any:
 def _encode_jersey(label: str) -> tuple[int, int]:
     normalized = label.strip()
     if not normalized.isdigit() or len(normalized) not in {1, 2}:
-        raise ValueError(f"Camisa deve conter um ou dois digitos: {label!r}")
+        raise ValueError(f"A jersey number must contain one or two digits: {label!r}")
     if len(normalized) == 1:
         return int(normalized), BLANK_DIGIT
     return int(normalized[0]), int(normalized[1])
@@ -183,7 +183,7 @@ def _manifest_dataset(manifest: Path, items: list[dict], labels: Sequence[str] |
                     actual_hash = hashlib.sha256(np.asarray(rgb).tobytes()).hexdigest()
                     if actual_hash != str(expected_hash):
                         raise ValueError(
-                            f"Crop revisado obsoleto: {item.get('crop_id') or path.name}"
+                            f"Stale reviewed crop: {item.get('crop_id') or path.name}"
                         )
                 bbox = item.get("bbox_revised")
                 if isinstance(bbox, list) and len(bbox) == 4:
@@ -515,10 +515,15 @@ class TorchHandwritingRecognizer:
         self.torch = torch
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         root = Path(model_dir)
+        self.model_fingerprints = {
+            path.name: hashlib.sha256(path.read_bytes()).hexdigest()
+            for path in (root / "jersey.pt", root / "foul.pt")
+            if path.exists()
+        }
         self.jersey = self._load(root / "jersey.pt", "jersey")
         self.foul = self._load(root / "foul.pt", "foul")
         if self.jersey is None and self.foul is None:
-            raise FileNotFoundError(f"Nenhum modelo jersey.pt ou foul.pt em {root}")
+            raise FileNotFoundError(f"No jersey.pt or foul.pt model found in {root}")
 
     def _load(self, path: Path, task: str):
         if not path.exists():

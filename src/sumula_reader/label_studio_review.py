@@ -71,12 +71,12 @@ def prepare_review(
 ) -> dict[str, Any]:
     root = Path(dataset_root)
     if stage not in REVIEW_STAGES:
-        raise ValueError(f"Stage invalido: {stage}")
+        raise ValueError(f"Invalid review stage: {stage}")
     review_root = root / "review"
     review_root.mkdir(parents=True, exist_ok=True)
     if stage == "geometry":
         if audit_only:
-            raise ValueError("--audit-only so pode ser usado em jerseys ou fouls")
+            raise ValueError("--audit-only is supported only for jerseys or fouls")
         tasks = _prepare_geometry(root, review_root, dpi=dpi)
         config = _geometry_labeling_config()
     else:
@@ -127,13 +127,13 @@ def import_review(
 ) -> dict[str, Any]:
     root = Path(dataset_root)
     if stage not in REVIEW_STAGES:
-        raise ValueError(f"Stage invalido: {stage}")
+        raise ValueError(f"Invalid review stage: {stage}")
     exported = json.loads(Path(export_path).read_text(encoding="utf-8"))
     if not isinstance(exported, list):
-        raise ValueError("Export do Label Studio deve ser uma lista de tarefas")
+        raise ValueError("The Label Studio export must be a task list")
     if stage == "geometry":
         if audit_only:
-            raise ValueError("--audit-only so pode ser usado em jerseys ou fouls")
+            raise ValueError("--audit-only is supported only for jerseys or fouls")
         return _import_geometry(root, exported)
     if audit_only:
         reviewed_manifest = (
@@ -353,7 +353,7 @@ def _prepare_crops(
             continue
         crop_id = str(item.get("crop_id") or stable_crop_id(item))
         if crop_id in seen:
-            raise ValueError(f"crop_id duplicado no manifesto: {crop_id}")
+            raise ValueError(f"Duplicate crop_id in manifest: {crop_id}")
         seen.add(crop_id)
         source_crop = manifest.parent / str(item["crop_path"])
         if not source_crop.exists():
@@ -451,7 +451,7 @@ def _import_geometry(root: Path, exported: list[dict[str, Any]]) -> dict[str, An
         data = _task_data(task)
         document_id = _resolve_geometry_document(root, task, data, catalog)
         if document_id in seen_documents:
-            raise ValueError(f"Documento duplicado no export: {document_id}")
+            raise ValueError(f"Duplicate document in export: {document_id}")
         seen_documents.add(document_id)
         annotation = _latest_annotation(task)
         if annotation is None:
@@ -466,16 +466,18 @@ def _import_geometry(root: Path, exported: list[dict[str, Any]]) -> dict[str, An
             value = result.get("value", {})
             labels = value.get("rectanglelabels", [])
             if not isinstance(labels, list) or len(labels) != 1:
-                raise ValueError(f"Regiao sem rotulo unico no documento {document_id}")
+                raise ValueError(f"Region without a unique label in document {document_id}")
             region_name = str(labels[0])
             if region_name not in GEOMETRY_REGIONS:
-                raise ValueError(f"Regiao desconhecida: {region_name}")
+                raise ValueError(f"Unknown region: {region_name}")
             if region_name in annotation_regions:
-                raise ValueError(f"Regiao duplicada em {document_id}: {region_name}")
+                raise ValueError(f"Duplicate region in {document_id}: {region_name}")
             revised = _normalized_bbox_from_result(result)
             state_values = choices.get(str(result.get("id")), ["usable"])
             if len(state_values) != 1 or state_values[0] not in {"usable", "unusable"}:
-                raise ValueError(f"Estado geometrico invalido em {document_id}/{region_name}")
+                raise ValueError(
+                    f"Invalid geometry state in {document_id}/{region_name}"
+                )
             original = FECABA_V1.region(region_name)
             annotation_regions[region_name] = {
                 "state": state_values[0],
@@ -521,7 +523,7 @@ def _import_crops(
     for item in automatic:
         crop_id = str(item.get("crop_id") or stable_crop_id(item))
         if crop_id in base_by_id:
-            raise ValueError(f"crop_id duplicado no manifesto: {crop_id}")
+            raise ValueError(f"Duplicate crop_id in manifest: {crop_id}")
         enriched = dict(item)
         enriched["crop_id"] = crop_id
         enriched.setdefault("source_image_hash", catalog[str(item["document_id"])]["sha256"])
@@ -540,24 +542,24 @@ def _import_crops(
         data = _task_data(task)
         crop_id = str(data.get("crop_id") or "")
         if not crop_id or crop_id not in base_by_id:
-            raise ValueError(f"crop_id desconhecido no export: {crop_id!r}")
+            raise ValueError(f"Unknown crop_id in export: {crop_id!r}")
         if crop_id in seen:
-            raise ValueError(f"crop_id duplicado no export: {crop_id}")
+            raise ValueError(f"Duplicate crop_id in export: {crop_id}")
         seen.add(crop_id)
         base = base_by_id[crop_id]
         expected_field = str(base.get("field_type") or "")
         if expected_field not in stage_fields:
-            raise ValueError(f"Crop {crop_id} nao pertence ao stage {stage}")
+            raise ValueError(f"Crop {crop_id} does not belong to stage {stage}")
         document = catalog[str(base["document_id"])]
         _validate_source_hash(data, document)
         if str(base.get("source_image_hash")) != str(document["sha256"]):
-            raise ValueError(f"Versao da sumula divergente para {crop_id}")
+            raise ValueError(f"Scoresheet version mismatch for {crop_id}")
         actual_crop_hash = _crop_file_hash(manifest.parent / str(base["crop_path"]))
         expected_crop_hash = str(base.get("crop_image_hash") or actual_crop_hash)
         if str(data.get("crop_image_hash") or "") != expected_crop_hash:
-            raise ValueError(f"Crop {crop_id} pertence a uma versao de corte diferente")
+            raise ValueError(f"Crop {crop_id} belongs to a different crop version")
         if actual_crop_hash != expected_crop_hash:
-            raise ValueError(f"Crop {crop_id} foi regenerado desde a preparacao da revisao")
+            raise ValueError(f"Crop {crop_id} was regenerated after review preparation")
         base["crop_image_hash"] = expected_crop_hash
         annotation = _latest_annotation(task)
         if annotation is None:
@@ -577,7 +579,7 @@ def _import_crops(
         width = int(data.get("image_width") or 0)
         height = int(data.get("image_height") or 0)
         if width <= 0 or height <= 0:
-            raise ValueError(f"Dimensoes invalidas no crop {crop_id}")
+            raise ValueError(f"Invalid dimensions for crop {crop_id}")
         revised_bbox = _normalized_to_pixel_bbox(result["bbox"], width, height)
         original_bbox = base.get("bbox_original") or [0, 0, width, height]
         _validate_pixel_bbox(original_bbox, width, height, crop_id)
@@ -661,24 +663,24 @@ def _import_audit(
         data = _task_data(task)
         crop_id = str(data.get("crop_id") or "")
         if not crop_id or crop_id not in by_id:
-            raise ValueError(f"crop_id desconhecido no export de auditoria: {crop_id!r}")
+            raise ValueError(f"Unknown crop_id in audit export: {crop_id!r}")
         if crop_id in seen:
-            raise ValueError(f"crop_id duplicado no export de auditoria: {crop_id}")
+            raise ValueError(f"Duplicate crop_id in audit export: {crop_id}")
         seen.add(crop_id)
         item = by_id[crop_id]
         expected_field = str(item.get("field_type") or "")
         if expected_field not in stage_fields:
-            raise ValueError(f"Crop {crop_id} nao pertence ao stage {stage}")
+            raise ValueError(f"Crop {crop_id} does not belong to stage {stage}")
         if not bool(item.get("audit_required")):
-            raise ValueError(f"Crop {crop_id} nao pertence a amostra de auditoria")
+            raise ValueError(f"Crop {crop_id} does not belong to the audit sample")
         document = catalog[str(item["document_id"])]
         _validate_source_hash(data, document)
         actual_crop_hash = _crop_file_hash(manifest.parent / str(item["crop_path"]))
         expected_crop_hash = str(item.get("crop_image_hash") or actual_crop_hash)
         if str(data.get("crop_image_hash") or "") != expected_crop_hash:
-            raise ValueError(f"Crop {crop_id} pertence a uma versao de corte diferente")
+            raise ValueError(f"Crop {crop_id} belongs to a different crop version")
         if actual_crop_hash != expected_crop_hash:
-            raise ValueError(f"Crop {crop_id} foi regenerado desde a primeira revisao")
+            raise ValueError(f"Crop {crop_id} was regenerated after the first review")
         annotation = _latest_annotation(task)
         if annotation is None:
             pending += 1
@@ -694,7 +696,7 @@ def _import_audit(
         width = int(data.get("image_width") or 0)
         height = int(data.get("image_height") or 0)
         if width <= 0 or height <= 0:
-            raise ValueError(f"Dimensoes invalidas no crop {crop_id}")
+            raise ValueError(f"Invalid dimensions for crop {crop_id}")
         revised_bbox = _normalized_to_pixel_bbox(result["bbox"], width, height)
         first_bbox = item.get("bbox_revised") or item.get("bbox_original")
         if first_bbox is None:
@@ -766,7 +768,7 @@ def _parse_crop_annotation(results: list[dict[str, Any]], *, crop_id: str) -> di
         if result.get("type") == "rectanglelabels" and result.get("from_name") == "bbox"
     ]
     if len(boxes) != 1:
-        raise ValueError(f"Crop {crop_id} deve conter exatamente uma caixa")
+        raise ValueError(f"Crop {crop_id} must contain exactly one bounding box")
     box = boxes[0]
     region_id = str(box.get("id") or "")
     bbox = _normalized_bbox_from_result(box)
@@ -775,7 +777,7 @@ def _parse_crop_annotation(results: list[dict[str, Any]], *, crop_id: str) -> di
         raise ValueError(f"Crop {crop_id} possui mais de uma decisao")
     decision = str(choices[0]) if choices else None
     if decision is not None and decision not in CROP_DECISIONS:
-        raise ValueError(f"Decisao invalida em {crop_id}: {decision}")
+        raise ValueError(f"Invalid decision for {crop_id}: {decision}")
     texts = [
         result
         for result in results
@@ -784,7 +786,7 @@ def _parse_crop_annotation(results: list[dict[str, Any]], *, crop_id: str) -> di
         and result.get("from_name") == "final_label"
     ]
     if len(texts) > 1:
-        raise ValueError(f"Crop {crop_id} possui mais de um rotulo final")
+        raise ValueError(f"Crop {crop_id} has more than one final label")
     label: str | None = None
     if texts:
         values = texts[0].get("value", {}).get("text", [])
@@ -795,17 +797,17 @@ def _parse_crop_annotation(results: list[dict[str, Any]], *, crop_id: str) -> di
 
 def _validate_final_label(field_type: str, label: str | None, crop_id: str) -> str:
     if label is None:
-        raise ValueError(f"Crop {crop_id} aceito/ajustado precisa de rotulo")
+        raise ValueError(f"Accepted or adjusted crop {crop_id} requires a label")
     if field_type in {"jersey", "scoring_event"}:
         label = label.strip()
         if not label.isdigit() or not 0 <= int(label) <= 99:
-            raise ValueError(f"Camisa invalida em {crop_id}: {label!r}")
+            raise ValueError(f"Invalid jersey number in {crop_id}: {label!r}")
         return label
     normalized = label.upper().replace(" ", "")
     canonical = {value.upper(): value for value in FOUL_LABELS}
     if normalized not in canonical:
         allowed = ", ".join(FOUL_LABELS)
-        raise ValueError(f"Falta invalida em {crop_id}: {label!r}. Permitidas: {allowed}")
+        raise ValueError(f"Invalid foul in {crop_id}: {label!r}. Allowed: {allowed}")
     return canonical[normalized]
 
 
@@ -820,7 +822,7 @@ def _catalog_by_id(root: Path) -> dict[str, dict[str, Any]]:
 def _task_data(task: dict[str, Any]) -> dict[str, Any]:
     data = task.get("data")
     if not isinstance(data, dict):
-        raise ValueError("Tarefa do Label Studio sem objeto data")
+        raise ValueError("Label Studio task is missing its data object")
     return data
 
 
@@ -833,13 +835,13 @@ def _resolve_geometry_document(
     document_id = str(data.get("document_id") or "")
     if document_id:
         if document_id not in catalog:
-            raise ValueError(f"Documento desconhecido no export: {document_id!r}")
+            raise ValueError(f"Unknown document in export: {document_id!r}")
         _validate_source_hash(data, catalog[document_id])
         return document_id
 
     upload_name = Path(str(task.get("file_upload") or "")).name
     if not upload_name:
-        raise ValueError("Export de geometria sem document_id nem file_upload")
+        raise ValueError("Geometry export has neither document_id nor file_upload")
 
     candidates = [
         candidate_id
@@ -852,7 +854,7 @@ def _resolve_geometry_document(
     ]
     if len(candidates) != 1:
         raise ValueError(
-            f"Nao foi possivel identificar unicamente a sumula por file_upload: {upload_name!r}"
+            f"Scoresheet could not be identified uniquely from file_upload: {upload_name!r}"
         )
     document_id = candidates[0]
 
@@ -863,12 +865,12 @@ def _resolve_geometry_document(
     uploaded = list(upload_root.rglob(upload_name)) if upload_root.exists() else []
     if len(uploaded) != 1:
         raise ValueError(
-            f"Arquivo enviado ao Label Studio nao encontrado unicamente: {upload_name!r}"
+            f"Label Studio upload could not be resolved uniquely: {upload_name!r}"
         )
     expected_hash = hashlib.sha256(expected_media.read_bytes()).hexdigest()
     uploaded_hash = hashlib.sha256(uploaded[0].read_bytes()).hexdigest()
     if uploaded_hash != expected_hash:
-        raise ValueError(f"Imagem do Label Studio diverge da geometria de {document_id}")
+        raise ValueError(f"Label Studio image differs from {document_id} geometry")
 
     return document_id
 
@@ -878,7 +880,7 @@ def _validate_source_hash(data: dict[str, Any], catalog_record: dict[str, Any]) 
     received = str(data.get("source_image_hash") or "")
     if received != expected:
         raise ValueError(
-            f"Versao da sumula divergente para {catalog_record['document_id']}: "
+            f"Scoresheet version mismatch for {catalog_record['document_id']}: "
             f"esperado {expected[:12]}, recebido {received[:12] or '<vazio>'}"
         )
 
@@ -905,9 +907,9 @@ def _choices_by_region(
         region_id = str(result.get("id") or "")
         values = result.get("value", {}).get("choices", [])
         if not isinstance(values, list):
-            raise ValueError(f"Choices invalido em {from_name}")
+            raise ValueError(f"Invalid choices value in {from_name}")
         if region_id in choices:
-            raise ValueError(f"Choices duplicado para a regiao {region_id}")
+            raise ValueError(f"Duplicate choices value for region {region_id}")
         choices[region_id] = [str(value) for value in values]
     return choices
 
@@ -950,7 +952,7 @@ def _normalized_bbox_from_result(result: dict[str, Any]) -> tuple[float, float, 
         width = float(value["width"]) / 100.0
         height = float(value["height"]) / 100.0
     except (KeyError, TypeError, ValueError) as exc:
-        raise ValueError("Caixa do Label Studio incompleta") from exc
+        raise ValueError("Incomplete Label Studio bounding box") from exc
     epsilon = 1e-9
     if -epsilon <= x < 0:
         x = 0.0
@@ -968,7 +970,7 @@ def _normalized_bbox_from_result(result: dict[str, Any]) -> tuple[float, float, 
 def _validate_normalized_bbox(rect: tuple[float, float, float, float]) -> None:
     x, y, width, height = rect
     if width <= 0 or height <= 0:
-        raise ValueError("Caixa deve possuir largura e altura positivas")
+        raise ValueError("Bounding box width and height must be positive")
     if x < 0 or y < 0 or x + width > 1.000001 or y + height > 1.000001:
         raise ValueError("Caixa ultrapassa os limites da imagem")
 
@@ -996,11 +998,11 @@ def _normalized_to_pixel_bbox(
 
 def _validate_pixel_bbox(bbox: Any, width: int, height: int, crop_id: str) -> None:
     if not isinstance(bbox, (list, tuple)) or len(bbox) != 4:
-        raise ValueError(f"bbox invalida em {crop_id}")
+        raise ValueError(f"Invalid bounding box in {crop_id}")
     try:
         left, top, right, bottom = [int(value) for value in bbox]
     except (TypeError, ValueError) as exc:
-        raise ValueError(f"bbox invalida em {crop_id}") from exc
+        raise ValueError(f"Invalid bounding box in {crop_id}") from exc
     if left < 0 or top < 0 or right > width or bottom > height:
         raise ValueError(f"bbox fora da imagem em {crop_id}")
     if right <= left or bottom <= top:
@@ -1101,7 +1103,7 @@ def _geometry_labeling_config() -> str:
 def _crop_labeling_config(stage: str) -> str:
     vocabulary = "0-99" if stage in {"jerseys", "scoring"} else ", ".join(FOUL_LABELS)
     return f"""<View>
-  <Header value="Crop: $crop_id | Documento: $document_id | Posicao: $position | Periodo: $period | Previsto: $predicted_type $predicted_label" />
+  <Header value="Crop: $crop_id | Document: $document_id | Position: $position | Period: $period | Predicted: $predicted_type $predicted_label" />
   <Image name="image" value="$image" />
   <RectangleLabels name="bbox" toName="image">
     <Label value="candidate" />

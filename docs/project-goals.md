@@ -37,7 +37,7 @@ When work competes for time, prioritize it in this order:
 
 ## Current Milestone
 
-**Active milestone: M3 — Measured reliability.**
+**Completed milestone: M6 — FECABA v1.0.**
 
 M1 and M2 were completed on 2026-10-03. The M1 operational procedure and evidence format remain documented in [M1 — Trusted Evaluation Data](m1-evaluation.md).
 
@@ -45,22 +45,17 @@ M1 completion evidence: [M1 Status](m1-status.md).
 
 M2 completion evidence: [M2 Status](m2-status.md).
 
-M3 work is limited to measuring the FECABA parser and deriving acceptance policy from the M1 held-out corpus. The default work queue is:
+M3 completion evidence: [M3 Status](m3-status.md).
 
-- generating component and end-to-end predictions for every evaluated core-field type;
-- reporting accepted error rate, automation rate, global accuracy, and review rate together;
-- deriving acceptance thresholds from held-out evidence rather than checkpoint defaults;
-- measuring known-writer and unknown-writer slices separately where the corpus permits;
-- preserving M2 review and unresolved states when no threshold satisfies the quality gate.
+M4 completion evidence: [M4 Status](m4-status.md).
 
-The following work is frozen by default while M3 is active:
+M5 completion evidence: [M5 Status](m5-status.md).
 
-- support for new scoresheet formats;
-- product surfaces such as dashboards, mobile apps, or SaaS features;
-- optimization work that does not produce reproducible reliability evidence;
-- milestone M4-M6 work that does not remove a direct blocker for M3.
+M6 completion evidence: [M6 Status](m6-status.md).
 
-Advance from M3 to M4 only after every M3 exit criterion below has evidence in the repository or release records. When the active milestone changes, update this section in the same commit/PR that records the evidence for the transition.
+All pre-v1.0 milestones are complete. The release is documented in [FECABA v1.0 Release Record](release-v1.0.md). Post-v1.0 work may begin only through a new scoped goal that preserves the v1.0 quality policy.
+
+The v1.0 acceptance policy remains `review_all` until independent evidence supports a safer and more useful threshold. New formats and product surfaces require a separate post-v1.0 decision.
 
 ## Goals Through v1.0
 

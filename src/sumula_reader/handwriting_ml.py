@@ -19,7 +19,7 @@ class DigitTrainingConfig:
 
 
 class DigitCNN:
-    """Wrapper que constroi a CNN sem importar torch no pacote base."""
+    """Build the CNN without importing torch in the base package."""
 
     @staticmethod
     def build() -> Any:
@@ -135,9 +135,9 @@ def evaluate_digit_model(model: Any, loader: Any, device: Any) -> dict[str, Any]
 
 def train_emnist_digits(config: DigitTrainingConfig) -> dict[str, Any]:
     if config.epochs < 1:
-        raise ValueError("epochs deve ser maior ou igual a 1")
+        raise ValueError("epochs must be at least 1")
     if config.batch_size < 1:
-        raise ValueError("batch_size deve ser maior ou igual a 1")
+        raise ValueError("batch_size must be at least 1")
 
     torch, _, _, _ = _torch_modules()
     random.seed(config.seed)
