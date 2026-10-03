@@ -1,12 +1,12 @@
 {
   "catalog_documents": 51,
-  "corpus_sha256": "ffc6b5f68cfa4f8b4bd0fba34c9dd7a35bb01947a616c17f589f1123590c9c25",
+  "corpus_sha256": "92f9e8d1124a2839b2029bc4e55d66309800629916c38e07d9031f2e4a726ba7",
   "duplicate_documents": [],
   "exit_criteria": {
     "baseline_metrics_reproducible": true,
     "corpus_identified": true,
     "document_and_writer_isolation": true,
-    "reviewed_ground_truth": false
+    "reviewed_ground_truth": true
   },
   "ground_truth_documents": 5,
   "isolation_error": null,
@@ -14,14 +14,13 @@
   "milestone": "M1",
   "orphan_ground_truth": [],
   "review_status_counts": {
-    "partial": 4,
-    "reviewed": 1
+    "reviewed": 5
   },
-  "reviewed_ground_truth_documents": 1,
+  "reviewed_ground_truth_documents": 5,
   "split_counts": {
     "test": 1,
     "train": 2,
     "validation": 2
   },
-  "status": "in_progress"
+  "status": "ready"
 }

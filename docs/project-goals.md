@@ -37,28 +37,28 @@ When work competes for time, prioritize it in this order:
 
 ## Current Milestone
 
-**Active milestone: M1 — Trusted evaluation data.**
+**Active milestone: M2 — Complete FECABA parser.**
 
-Operational procedure and evidence format: [M1 — Trusted Evaluation Data](m1-evaluation.md).
+M1 was completed on 2026-10-03. Its operational procedure and evidence format remain documented in [M1 — Trusted Evaluation Data](m1-evaluation.md).
 
-Current evidence snapshot: [M1 Status](m1-status.md).
+Completion evidence: [M1 Status](m1-status.md).
 
-Until M1 exit criteria are satisfied, the default work queue is limited to:
+M2 work is limited to completing and validating the public FECABA image/PDF-to-`DocumentResult` path. The default work queue is:
 
-- reviewing and correcting real FECABA ground truth;
-- defining and versioning the evaluation corpus and its train/evaluation split;
-- enforcing document-level and available writer-level isolation;
-- making baseline evaluation reproducible;
-- fixing defects that prevent trustworthy M1 data or metrics.
+- inventorying the fields currently emitted by the public CLI/API against the M2 core record;
+- implementing missing FECABA extraction and structured-output paths;
+- propagating contradictions and uncertain observations as review or unresolved states;
+- adding representative end-to-end integration coverage;
+- preserving the M1 corpus identity and evaluation procedure while parser behavior changes.
 
-The following work is frozen by default while M1 is active:
+The following work is frozen by default while M2 is active:
 
 - support for new scoresheet formats;
 - product surfaces such as dashboards, mobile apps, or SaaS features;
 - optimization work whose only purpose is increasing automation before the evaluation baseline is trustworthy;
-- milestone M2-M6 work that does not remove a direct blocker for M1.
+- milestone M3-M6 work that does not remove a direct blocker for M2.
 
-Advance from M1 to M2 only after every M1 exit criterion below has evidence in the repository or release records. When the active milestone changes, update this section in the same commit/PR that records the evidence for the transition.
+Advance from M2 to M3 only after every M2 exit criterion below has evidence in the repository or release records. When the active milestone changes, update this section in the same commit/PR that records the evidence for the transition.
 
 ## Goals Through v1.0
 
